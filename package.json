@@ -4,6 +4,8 @@
   "private": true,
   "main": "expo-router/entry",
   "scripts": {
+    "build": "expo export -p web",
+    "preview": "node scripts/preview-web.mjs",
     "start": "expo start --offline",
     "start:online": "expo start",
     "android": "expo start --offline --android",
