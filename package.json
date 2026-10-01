@@ -15,6 +15,9 @@
     "verify:firestore": "firebase emulators:exec --project demo-the-list --only auth,firestore \"node scripts/verify-firestore-schema.mjs\""
   },
   "dependencies": {
+    "@expo-google-fonts/dm-mono": "^0.4.2",
+    "@expo-google-fonts/dm-sans": "^0.4.2",
+    "@expo-google-fonts/playfair-display": "^0.4.2",
     "@expo/vector-icons": "~14.0.4",
     "@react-native-async-storage/async-storage": "1.23.1",
     "expo": "~52.0.46",

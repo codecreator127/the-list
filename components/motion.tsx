@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type PropsWithChildren } from 'react';
-import { AccessibilityInfo, Animated, Platform, Pressable, type PressableProps, type StyleProp, type ViewStyle } from 'react-native';
+import { AccessibilityInfo, Animated, Easing, Platform, Pressable, type PressableProps, type StyleProp, type ViewStyle } from 'react-native';
 
 function useReducedMotion() {
   const [reduced, setReduced] = useState<boolean | null>(null);
@@ -23,6 +23,22 @@ export function Entrance({ children, delay = 0, style }: PropsWithChildren<{ del
     return () => animation.stop();
   }, [delay, progress, reduced]);
   return <Animated.View style={[style, { opacity: progress, transform: [{ translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [9, 0] }) }] }]}>{children}</Animated.View>;
+}
+
+export function Float({ children, style, distance = 8, duration = 3000 }: PropsWithChildren<{ style?: StyleProp<ViewStyle>; distance?: number; duration?: number }>) {
+  const reduced = useReducedMotion();
+  const offset = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    if (reduced === null) return;
+    if (reduced) { offset.setValue(0); return; }
+    const animation = Animated.loop(Animated.sequence([
+      Animated.timing(offset, { toValue: -distance, duration, easing: Easing.inOut(Easing.ease), useNativeDriver: Platform.OS !== 'web' }),
+      Animated.timing(offset, { toValue: 0, duration, easing: Easing.inOut(Easing.ease), useNativeDriver: Platform.OS !== 'web' }),
+    ]));
+    animation.start();
+    return () => animation.stop();
+  }, [distance, duration, offset, reduced]);
+  return <Animated.View style={[style, { transform: [{ translateY: offset }] }]}>{children}</Animated.View>;
 }
 
 type PressableScaleProps = PropsWithChildren<Pick<PressableProps, 'onPress' | 'onPressIn' | 'onPressOut' | 'disabled' | 'accessibilityRole' | 'accessibilityLabel' | 'accessibilityState' | 'hitSlop' | 'testID'>> & { style?: StyleProp<ViewStyle>; hoverStyle?: StyleProp<ViewStyle>; hoverScale?: number };

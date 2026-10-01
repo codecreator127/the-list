@@ -10,7 +10,7 @@ import { Text } from '../../components/ui';
 type IconName = ComponentProps<typeof Ionicons>['name'];
 
 const tabMeta: Record<string, { label: string; icon: IconName; activeIcon: IconName }> = {
-  index: { label: 'Home', icon: 'home-outline', activeIcon: 'home' },
+  home: { label: 'Home', icon: 'home-outline', activeIcon: 'home' },
   search: { label: 'Search', icon: 'search-outline', activeIcon: 'search' },
   list: { label: 'List', icon: 'list-outline', activeIcon: 'list' },
   profile: { label: 'Profile', icon: 'person-outline', activeIcon: 'person' },
@@ -40,9 +40,8 @@ function TabBar({ state, descriptors, navigation }: any) {
             hoverScale={1.015}
             style={[styles.item, focused && styles.itemActive]}
           >
-            {focused ? <View style={styles.indicator}/> : null}
-            <Ionicons name={focused ? meta.activeIcon : meta.icon} size={20} color={focused ? colors.green : colors.muted}/>
-            <Text size={11} weight="700" color={focused ? colors.green : colors.muted}>{meta.label}</Text>
+            <Ionicons name={focused ? meta.activeIcon : meta.icon} size={20} color={focused ? colors.accent : colors.textMuted}/>
+            <Text size={11} weight="700" color={focused ? colors.accent : colors.textMuted}>{meta.label}</Text>
           </PressableScale>
         </View>;
       })}
@@ -53,7 +52,7 @@ function TabBar({ state, descriptors, navigation }: any) {
 export default function TabLayout() {
   useTheme();
   return <Tabs tabBar={props => <TabBar {...props}/>} screenOptions={{ headerShown: false }}>
-    <Tabs.Screen name="index" options={{ title: 'Home' }}/>
+    <Tabs.Screen name="home" options={{ title: 'Home' }}/>
     <Tabs.Screen name="search" options={{ title: 'Search' }}/>
     <Tabs.Screen name="list" options={{ title: 'List' }}/>
     <Tabs.Screen name="profile" options={{ title: 'Profile' }}/>
@@ -76,14 +75,14 @@ const makeStyles = (desktop: boolean) => StyleSheet.create({
     paddingHorizontal: 8,
     paddingTop: 9,
     paddingBottom: 10,
-    borderRadius: radius.lg,
-    backgroundColor: colors.white,
+    borderRadius: 3,
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: colors.line,
+    borderColor: colors.border,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    ...Platform.select({ web: shadow, default: { elevation: 10, shadowColor: '#273728', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.1, shadowRadius: 20 } }),
+    ...Platform.select({ web: shadow, default: { elevation: 10, shadowColor: colors.shadow, shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.1, shadowRadius: 20 } }),
   },
   itemShell: {
     flex: 1,
@@ -91,24 +90,16 @@ const makeStyles = (desktop: boolean) => StyleSheet.create({
   item: {
     width: '100%',
     minHeight: 56,
-    borderRadius: radius.md,
+    borderRadius: 3,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 4,
     position: 'relative',
   },
   itemActive: {
-    backgroundColor: colors.soft,
+    backgroundColor: colors.surfaceHover,
   },
   itemHover: {
-    backgroundColor: colors.soft,
-  },
-  indicator: {
-    position: 'absolute',
-    top: 6,
-    width: 20,
-    height: 3,
-    borderRadius: 2,
-    backgroundColor: colors.green,
+    backgroundColor: colors.surfaceHover,
   },
 });
