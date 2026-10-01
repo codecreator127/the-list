@@ -1,0 +1,132 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function validPlace(placeId) {
+      // Google Place IDs are exempt from Places API caching restrictions.
+      // Other Places API fields are fetched live and are not persisted here.
+      return request.resource.data.keys().hasOnly(['googlePlaceId', 'createdAt', 'updatedAt'])
+        && request.resource.data.googlePlaceId is string
+        && request.resource.data.googlePlaceId.size() > 0
+        && placeId == 'pl_' + request.resource.data.googlePlaceId
+        && request.resource.data.createdAt is timestamp
+        && request.resource.data.updatedAt is timestamp;
+    }
+
+    function validSubRating(ratings, key) {
+      return !(key in ratings)
+        || (ratings[key] is int && ratings[key] >= 1 && ratings[key] <= 10);
+    }
+
+    function validSubRatings(data) {
+      return !('subRatings' in data)
+        || (data.subRatings is map
+          && data.subRatings.keys().hasOnly(['food', 'service', 'atmosphere', 'value'])
+          && validSubRating(data.subRatings, 'food')
+          && validSubRating(data.subRatings, 'service')
+          && validSubRating(data.subRatings, 'atmosphere')
+          && validSubRating(data.subRatings, 'value'));
+    }
+
+    function validReview(reviewId) {
+      return reviewId == request.auth.uid + '_' + request.resource.data.placeId
+        && request.resource.data.keys().hasOnly(['userId', 'placeId', 'rating', 'ratingScale', 'subRatings', 'text', 'createdAt', 'updatedAt'])
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.placeId is string
+        && exists(/databases/$(database)/documents/places/$(request.resource.data.placeId))
+        && request.resource.data.rating is int
+        && request.resource.data.rating >= 1
+        && request.resource.data.rating <= 10
+        && request.resource.data.ratingScale == 10
+        && validSubRatings(request.resource.data)
+        && request.resource.data.text is string
+        && request.resource.data.text.size() <= 500
+        && request.resource.data.createdAt is timestamp
+        && request.resource.data.updatedAt is timestamp;
+    }
+
+    match /users/{userId} {
+      allow read: if signedIn();
+      allow create: if signedIn()
+        && request.auth.uid == userId
+        && request.resource.data.keys().hasOnly(['displayName', 'email', 'avatarUrl', 'createdAt', 'updatedAt'])
+        && request.resource.data.keys().hasAll(['displayName', 'email', 'createdAt', 'updatedAt'])
+        && request.resource.data.displayName is string
+        && request.resource.data.displayName.size() > 0
+        && request.resource.data.email is string
+        && request.resource.data.email == request.auth.token.email
+        && request.resource.data.createdAt is timestamp
+        && request.resource.data.updatedAt is timestamp
+        && (!('avatarUrl' in request.resource.data) || request.resource.data.avatarUrl is string);
+      allow update: if signedIn()
+        && request.auth.uid == userId
+        && request.resource.data.keys().hasOnly(['displayName', 'email', 'avatarUrl', 'createdAt', 'updatedAt'])
+        && request.resource.data.keys().hasAll(['displayName', 'email', 'createdAt', 'updatedAt'])
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.displayName is string
+        && request.resource.data.displayName.size() > 0
+        && request.resource.data.email is string
+        && request.resource.data.email == request.auth.token.email
+        && request.resource.data.updatedAt is timestamp
+        && (!('avatarUrl' in request.resource.data) || request.resource.data.avatarUrl is string);
+      allow delete: if false;
+    }
+
+    match /places/{placeId} {
+      allow read: if signedIn();
+      allow create: if signedIn() && validPlace(placeId);
+      allow update: if signedIn()
+        && request.resource.data.googlePlaceId == resource.data.googlePlaceId
+        && request.resource.data.createdAt == resource.data.createdAt
+        && validPlace(placeId);
+      allow delete: if false;
+    }
+
+    match /reviews/{reviewId} {
+      allow read: if signedIn();
+      allow create: if signedIn() && validReview(reviewId);
+      allow update: if signedIn()
+        && resource.data.userId == request.auth.uid
+        && request.resource.data.userId == resource.data.userId
+        && request.resource.data.placeId == resource.data.placeId
+        && request.resource.data.createdAt == resource.data.createdAt
+        && validReview(reviewId);
+      allow delete: if signedIn() && resource.data.userId == request.auth.uid;
+    }
+
+    match /users/{userId}/list/{placeId} {
+      function validListEntry() {
+        return request.resource.data.keys().hasOnly(['placeId', 'rank', 'rating', 'updatedAt'])
+          && request.resource.data.keys().hasAll(['placeId', 'rank', 'rating', 'updatedAt'])
+          && request.resource.data.placeId == placeId
+          && exists(/databases/$(database)/documents/places/$(placeId))
+          && request.resource.data.rank is int
+          && request.resource.data.rank >= 1
+          && request.resource.data.rating is int
+          && request.resource.data.rating >= 1
+          && request.resource.data.rating <= 10
+          && request.resource.data.updatedAt is timestamp;
+      }
+
+      allow read: if signedIn() && request.auth.uid == userId;
+      allow create, update: if signedIn() && request.auth.uid == userId && validListEntry();
+      allow delete: if signedIn() && request.auth.uid == userId;
+    }
+
+    match /users/{userId}/listMeta/{metaId} {
+      allow read: if signedIn() && request.auth.uid == userId;
+      allow create, update: if signedIn()
+        && request.auth.uid == userId
+        && metaId == 'state'
+        && request.resource.data.keys().hasOnly(['revision', 'initialized', 'updatedAt'])
+        && request.resource.data.revision is int
+        && request.resource.data.revision >= 1
+        && request.resource.data.initialized == true
+        && request.resource.data.updatedAt is timestamp;
+      allow delete: if false;
+    }
+  }
+}

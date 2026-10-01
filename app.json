@@ -1,0 +1,25 @@
+{
+  "expo": {
+    "name": "The List",
+    "slug": "the-list",
+    "scheme": "thelist",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "plugins": [
+      "expo-router",
+      "expo-asset",
+      "expo-font",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Allow The List to use your location to find places within your chosen distance."
+        }
+      ]
+    ],
+    "web": {
+      "bundler": "metro",
+      "output": "single"
+    }
+  }
+}
