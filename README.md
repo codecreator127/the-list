@@ -2,6 +2,8 @@
 
 A mobile-first food discovery and review prototype for Sydney, built with Expo, React Native, TypeScript and Expo Router.
 
+For manual Vercel setup, required environment variables, the Firebase/Google security audit, and production verification results, see [DEPLOYMENT.md](DEPLOYMENT.md).
+
 ## Run locally
 
 ```sh
@@ -15,7 +17,7 @@ Copy `.env.example` to `.env` if you want to configure external services. Expo p
 
 ## Data mode
 
-- With no Firebase configuration, the app uses the local mock repository. Set `EXPO_PUBLIC_DATA_MODE=mock` to force mock data.
+- In local development, with no Firebase configuration, the app uses the local mock repository. Set `EXPO_PUBLIC_DATA_MODE=mock` to force mock data. Production exports require Firebase and the browser Places key and reject mock mode.
 - To use Firestore, set all six `EXPO_PUBLIC_FIREBASE_*` values and remove `EXPO_PUBLIC_DATA_MODE=mock` (or set it to `firebase`).
 - Firebase Authentication uses email and password. Enable **Email/Password** under Firebase Console → Authentication → Sign-in method, then publish `firestore.rules`. The app creates `users/{auth.uid}` on sign-up and returning-user sign-in. Users can read app data when signed in; each review is owned by the creating Auth UID and points to a stable Place document ID.
 - Firestore stores user profiles, reviews, a stable place record keyed by Google Place ID, and a materialized personal ranking at `users/{uid}/list/{placeId}`. Reviews remain the source of truth; review create/update/delete operations atomically update the user's ordered List. The first List read rebuilds this projection from that user's existing reviews, and `foodService.rebuildMyListFromReviews()` is available to repair it later. List entries keep only the place ID, rank, overall rating, and review update time. Google Place details and photos are fetched live rather than retained in Firestore because the Places API policy exempts Place IDs from its storage restrictions, but restricts storing other Places content. Review and List ownership use the authenticated UID.
@@ -32,7 +34,7 @@ In Google Cloud, enable billing and:
 - **Maps JavaScript API** for the browser Places library.
 - **Maps SDK for Android** and **Maps SDK for iOS** for native map tiles.
 
-Restrict the browser key to the Maps JavaScript API and deployed origins, the Places key to Places API (New), and the native map key to Maps SDK for Android/iOS and app identifiers configured in `app.config.ts` (`com.thelist.app`).
+Restrict the browser key to Maps JavaScript API, Places API (New), and deployed origins. Keep native keys separate: the Places key uses Places API (New), and map keys use the respective Maps SDK and app identifiers configured in `app.config.ts` (`com.thelist.app`). See DEPLOYMENT.md for restriction details and native REST limitations.
 
 Google Places content is shown with Google Maps attribution and photo author attribution when provided. The app requests venue details and photos live; only place IDs are saved. Before public release, provide Terms of Use and a Privacy Policy that cover Google Maps Platform use.
 
