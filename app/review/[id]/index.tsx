@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { router, useLocalSearchParams } from 'expo-router';
-import { KeyboardAvoidingView, Platform, StyleSheet, View } from 'react-native';
+import { KeyboardAvoidingView, Modal, Platform, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { BackButton, Button, Input, Page, Text } from '../../../components/ui';
 import { foodService } from '../../../services/foodService';
@@ -36,10 +36,13 @@ export default function WriteReview() {
   const [originalReview, setOriginalReview] = useState<Review>();
   const [reviewLoaded, setReviewLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [deleteConfirmationVisible, setDeleteConfirmationVisible] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState('');
   const [place, setPlace] = useState<Place>();
   const submissionInProgress = useRef(false);
+  const deletionInProgress = useRef(false);
 
   const hasChanges = !!originalReview && (
     rating !== originalReview.rating
@@ -109,7 +112,7 @@ export default function WriteReview() {
   }, [success]);
 
   async function submit() {
-    if (submissionInProgress.current || (isEditing && !hasChanges)) return;
+    if (submissionInProgress.current || deletionInProgress.current || (isEditing && !hasChanges)) return;
     if (!rating) { setError('Choose a star rating to continue.'); return; }
     setError('');
     submissionInProgress.current = true;
@@ -122,6 +125,24 @@ export default function WriteReview() {
       setError(cause instanceof Error ? cause.message : 'Could not save your review. Please try again.');
       submissionInProgress.current = false;
       setSaving(false);
+    }
+  }
+
+  async function deleteReview() {
+    if (!isEditing || !originalReview || deletionInProgress.current || submissionInProgress.current) return;
+    deletionInProgress.current = true;
+    setDeleting(true);
+    setError('');
+    try {
+      await foodService.deleteReview(id);
+      setDeleteConfirmationVisible(false);
+      if (router.canGoBack()) router.back();
+      else router.replace('/(tabs)/profile');
+    } catch (cause) {
+      setDeleteConfirmationVisible(false);
+      setError(cause instanceof Error ? cause.message : 'Could not delete your review. Please try again.');
+      deletionInProgress.current = false;
+      setDeleting(false);
     }
   }
 
@@ -168,13 +189,75 @@ export default function WriteReview() {
         <Button
           title={success ? (isEditing ? 'Changes saved' : 'Review shared') : saving ? 'Saving…' : isEditing ? 'Save changes' : 'Share review'}
           icon={success ? 'checkmark-circle-outline' : undefined}
-          disabled={saving || (isEditing && (!reviewLoaded || !hasChanges))}
+          disabled={saving || deleting || (isEditing && (!reviewLoaded || !hasChanges))}
           loading={saving}
           onPress={submit}
         />
       </View>
+      {isEditing ? <View style={s.deleteAction}>
+        <Button
+          title="Delete review"
+          variant="destructive"
+          size="small"
+          icon="trash-outline"
+          disabled={!reviewLoaded || !originalReview || saving || deleting}
+          onPress={() => { setError(''); setDeleteConfirmationVisible(true); }}
+          style={s.deleteButton}
+        />
+      </View> : null}
     </KeyboardAvoidingView>
+    <Modal
+      visible={deleteConfirmationVisible}
+      transparent
+      animationType="fade"
+      statusBarTranslucent
+      onRequestClose={() => { if (!deleting) setDeleteConfirmationVisible(false); }}
+    >
+      <View style={s.modalBackdrop} accessibilityViewIsModal>
+        <View style={s.confirmation}>
+          <View style={s.confirmationIcon}><Ionicons name="trash-outline" size={22} color={colors.error} /></View>
+          <Text size={21} weight="700" style={{ marginTop: 15 }}>Delete review?</Text>
+          <Text size={14} color={colors.textSecondary} style={{ marginTop: 8, lineHeight: 21 }}>
+            This will remove your review and the place from your List.
+          </Text>
+          {error ? <Text size={12} color={colors.error} style={{ marginTop: 10 }}>{error}</Text> : null}
+          <View style={s.confirmationActions}>
+            <Button
+              title="Cancel"
+              variant="secondary"
+              disabled={deleting}
+              onPress={() => setDeleteConfirmationVisible(false)}
+              style={{ flex: 1 }}
+            />
+            <Button
+              title="Delete review"
+              variant="destructive"
+              loading={deleting}
+              disabled={deleting}
+              onPress={deleteReview}
+              style={{ flex: 1 }}
+            />
+          </View>
+        </View>
+      </View>
+    </Modal>
   </Page>;
 }
 
-const makeStyles = () => StyleSheet.create({ header: { flexDirection: 'row', alignItems: 'center', marginBottom: 22 }, scaleRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 5, paddingVertical: 8 }, scaleStar: { width: 42, height: 46, borderRadius: 13, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.white, borderWidth: 1, borderColor: colors.line }, compactScaleStar: { width: 42, height: 42, borderRadius: 11 }, selected: { backgroundColor: colors.lime, borderColor: colors.star }, labelRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, categories: { marginTop: 20, padding: 15, borderRadius: radius.md, backgroundColor: colors.white, borderWidth: 1, borderColor: colors.line }, categoryRow: { marginTop: 15 }, input: { minHeight: 175, marginTop: 12, padding: 15, borderRadius: radius.md, backgroundColor: colors.white, borderWidth: 1, borderColor: colors.line, fontSize: 15, lineHeight: 23, fontFamily: typefaces.sansRegular, color: colors.ink } });
+const makeStyles = () => StyleSheet.create({
+  header: { flexDirection: 'row', alignItems: 'center', marginBottom: 22 },
+  scaleRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 5, paddingVertical: 8 },
+  scaleStar: { width: 42, height: 46, borderRadius: 13, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.white, borderWidth: 1, borderColor: colors.line },
+  compactScaleStar: { width: 42, height: 42, borderRadius: 11 },
+  selected: { backgroundColor: colors.lime, borderColor: colors.star },
+  labelRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  categories: { marginTop: 20, padding: 15, borderRadius: radius.md, backgroundColor: colors.white, borderWidth: 1, borderColor: colors.line },
+  categoryRow: { marginTop: 15 },
+  input: { minHeight: 175, marginTop: 12, padding: 15, borderRadius: radius.md, backgroundColor: colors.white, borderWidth: 1, borderColor: colors.line, fontSize: 15, lineHeight: 23, fontFamily: typefaces.sansRegular, color: colors.ink },
+  deleteAction: { marginTop: 14, paddingTop: 10, borderTopWidth: 1, borderTopColor: colors.border },
+  deleteButton: { alignSelf: 'flex-start', paddingHorizontal: 0 },
+  modalBackdrop: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24, backgroundColor: colors.scrim },
+  confirmation: { width: '100%', maxWidth: 420, padding: 24, backgroundColor: colors.surfaceElevated, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border },
+  confirmationIcon: { width: 42, height: 42, borderRadius: 21, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.surface },
+  confirmationActions: { flexDirection: 'row', gap: 10, marginTop: 24 },
+});
