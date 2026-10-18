@@ -24,7 +24,7 @@ export default function Welcome() {
 	const { width } = useWindowDimensions();
 	const compact = width < 760;
 	const styles = makeStyles();
-	const start = () => router.replace(isFirebaseRepositoryEnabled ? '/auth?mode=create' : '/(tabs)/home');
+	const start = () => router.replace(isFirebaseRepositoryEnabled ? '/auth' : '/(tabs)/home');
 	const signIn = () => router.push('/auth');
 	const openSearch = () => router.push('/(tabs)/search');
 	const openList = () => router.push('/(tabs)/list');
