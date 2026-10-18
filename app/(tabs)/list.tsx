@@ -2,7 +2,7 @@ import { useCallback, useState } from 'react';
 import { router, useFocusEffect } from 'expo-router';
 import { ActivityIndicator, Image, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Button, Page, Text } from '../../components/ui';
+import { Button, Page, RatingStars, Text } from '../../components/ui';
 import { Entrance, PressableScale } from '../../components/motion';
 import { watchAuthState } from '../../services/auth';
 import { foodService } from '../../services/foodService';
@@ -13,11 +13,10 @@ import { colors, typefaces, useTheme } from '../../theme';
 function RankedPlaceCard({ item }: { item: RankedPlace }) {
   const styles = makeStyles();
   const place = item.place;
-  const starFill = item.rating / 2;
   return <Entrance delay={Math.min((item.rank - 1) * 40, 240)}>
     <PressableScale
       accessibilityRole="button"
-      accessibilityLabel={`Rank ${item.rank}: ${place.name}, rated ${item.rating} out of 10`}
+      accessibilityLabel={`Rank ${item.rank}: ${place.name}, rated ${item.rating.toFixed(2)} out of 5.00`}
       onPress={() => router.push(`/place/${place.id}`)}
       hoverStyle={{ borderColor: colors.accentHover }}
       style={styles.card}
@@ -27,9 +26,9 @@ function RankedPlaceCard({ item }: { item: RankedPlace }) {
       <View style={styles.info}>
         <Text size={14} weight="600" numberOfLines={1}>{place.name}</Text>
         <Text size={10} color={colors.textMuted} numberOfLines={1} style={{ marginTop: 3 }}>{place.cuisine ?? place.category}{place.area ? ` · ${place.area}` : ''}</Text>
-        <View style={styles.stars} accessibilityLabel={`${item.rating.toFixed(1)} out of 10`}>{Array.from({ length: 5 }, (_, index) => <Ionicons key={index} name="star" size={11} color={index < starFill ? colors.rating : colors.border}/>)}</View>
+        <View style={styles.stars}><RatingStars value={item.rating} size={11}/></View>
       </View>
-      <Text size={14} weight="600" color={colors.textPrimary} style={styles.score}>{item.rating.toFixed(1)}<Text size={9} color={colors.textMuted}>/10</Text></Text>
+      <Text size={14} weight="600" color={colors.textPrimary} style={styles.score}>{item.rating.toFixed(2)}<Text size={9} color={colors.textMuted}>/5.00</Text></Text>
     </PressableScale>
   </Entrance>;
 }

@@ -12,6 +12,7 @@ type IconName = ComponentProps<typeof Ionicons>['name'];
 const tabMeta: Record<string, { label: string; icon: IconName; activeIcon: IconName }> = {
   home: { label: 'Home', icon: 'home-outline', activeIcon: 'home' },
   search: { label: 'Search', icon: 'search-outline', activeIcon: 'search' },
+  friends: { label: 'Friends', icon: 'people-outline', activeIcon: 'people' },
   list: { label: 'List', icon: 'list-outline', activeIcon: 'list' },
   profile: { label: 'Profile', icon: 'person-outline', activeIcon: 'person' },
 };
@@ -54,6 +55,7 @@ export default function TabLayout() {
   return <Tabs tabBar={props => <TabBar {...props}/>} screenOptions={{ headerShown: false }}>
     <Tabs.Screen name="home" options={{ title: 'Home' }}/>
     <Tabs.Screen name="search" options={{ title: 'Search' }}/>
+    <Tabs.Screen name="friends" options={{ title: 'Friends' }}/>
     <Tabs.Screen name="list" options={{ title: 'List' }}/>
     <Tabs.Screen name="profile" options={{ title: 'Profile' }}/>
   </Tabs>;

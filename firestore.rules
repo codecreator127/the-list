@@ -5,6 +5,36 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    function friendshipId(userA, userB) {
+      return userA < userB ? userA + '_' + userB : userB + '_' + userA;
+    }
+
+    function validUsername(username) {
+      return username is string
+        && username.matches('^[a-z0-9][a-z0-9_]{2,19}$');
+    }
+
+    function ownsUsername(userId, username) {
+      return validUsername(username)
+        && existsAfter(/databases/$(database)/documents/usernames/$(username))
+        && getAfter(/databases/$(database)/documents/usernames/$(username)).data.uid == userId;
+    }
+
+    function usernameAvatarMatchesProfile(userId, publicProfile) {
+      let profile = getAfter(/databases/$(database)/documents/users/$(userId)).data;
+      return ('avatarUrl' in publicProfile) == ('avatarUrl' in profile)
+        && (!('avatarUrl' in publicProfile) || publicProfile.avatarUrl == profile.avatarUrl);
+    }
+
+    function isFriend(userId) {
+      let path = /databases/$(database)/documents/friendships/$(friendshipId(request.auth.uid, userId));
+      return signedIn()
+        && request.auth.uid != userId
+        && exists(path)
+        && get(path).data.status == 'accepted'
+        && get(path).data.userIds.hasAll([request.auth.uid, userId]);
+    }
+
     function validPlace(placeId) {
       // Google Place IDs are exempt from Places API caching restrictions.
       // Other Places API fields are fetched live and are not persisted here.
@@ -37,10 +67,10 @@ service cloud.firestore {
         && request.resource.data.userId == request.auth.uid
         && request.resource.data.placeId is string
         && exists(/databases/$(database)/documents/places/$(request.resource.data.placeId))
-        && request.resource.data.rating is int
-        && request.resource.data.rating >= 1
-        && request.resource.data.rating <= 10
-        && request.resource.data.ratingScale == 10
+        && (request.resource.data.rating is int || request.resource.data.rating is float)
+        && request.resource.data.rating >= 0
+        && request.resource.data.rating <= 5
+        && request.resource.data.ratingScale == 5
         && validSubRatings(request.resource.data)
         && request.resource.data.text is string
         && request.resource.data.text.size() <= 500
@@ -49,30 +79,118 @@ service cloud.firestore {
     }
 
     match /users/{userId} {
-      allow read: if signedIn();
+      allow read: if signedIn() && request.auth.uid == userId;
       allow create: if signedIn()
         && request.auth.uid == userId
-        && request.resource.data.keys().hasOnly(['displayName', 'email', 'avatarUrl', 'createdAt', 'updatedAt'])
-        && request.resource.data.keys().hasAll(['displayName', 'email', 'createdAt', 'updatedAt'])
+        && request.resource.data.keys().hasOnly(['username', 'usernameNormalized', 'displayName', 'avatarUrl', 'createdAt', 'updatedAt'])
+        && request.resource.data.keys().hasAll(['username', 'usernameNormalized', 'displayName', 'createdAt', 'updatedAt'])
+        && validUsername(request.resource.data.username)
+        && request.resource.data.username == request.resource.data.usernameNormalized
+        && ownsUsername(userId, request.resource.data.usernameNormalized)
         && request.resource.data.displayName is string
         && request.resource.data.displayName.size() > 0
-        && request.resource.data.email is string
-        && request.resource.data.email == request.auth.token.email
+        && request.resource.data.displayName.size() <= 40
         && request.resource.data.createdAt is timestamp
         && request.resource.data.updatedAt is timestamp
         && (!('avatarUrl' in request.resource.data) || request.resource.data.avatarUrl is string);
       allow update: if signedIn()
         && request.auth.uid == userId
-        && request.resource.data.keys().hasOnly(['displayName', 'email', 'avatarUrl', 'createdAt', 'updatedAt'])
-        && request.resource.data.keys().hasAll(['displayName', 'email', 'createdAt', 'updatedAt'])
+        && request.resource.data.keys().hasOnly(['username', 'usernameNormalized', 'displayName', 'avatarUrl', 'createdAt', 'updatedAt'])
+        && request.resource.data.keys().hasAll(['username', 'usernameNormalized', 'displayName', 'createdAt', 'updatedAt'])
+        && validUsername(request.resource.data.username)
+        && request.resource.data.username == request.resource.data.usernameNormalized
+        && ownsUsername(userId, request.resource.data.usernameNormalized)
         && request.resource.data.createdAt == resource.data.createdAt
         && request.resource.data.displayName is string
         && request.resource.data.displayName.size() > 0
-        && request.resource.data.email is string
-        && request.resource.data.email == request.auth.token.email
+        && request.resource.data.displayName.size() <= 40
         && request.resource.data.updatedAt is timestamp
         && (!('avatarUrl' in request.resource.data) || request.resource.data.avatarUrl is string);
       allow delete: if false;
+    }
+
+    match /usernames/{username} {
+      allow read: if signedIn();
+      allow create: if signedIn()
+        && validUsername(username)
+        && request.resource.data.keys().hasOnly(['uid', 'username', 'usernameNormalized', 'displayName', 'avatarUrl', 'createdAt', 'updatedAt'])
+        && request.resource.data.keys().hasAll(['uid', 'username', 'usernameNormalized', 'displayName', 'createdAt', 'updatedAt'])
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.username == username
+        && request.resource.data.usernameNormalized == username
+        && request.resource.data.displayName is string
+        && request.resource.data.displayName.size() > 0
+        && request.resource.data.displayName.size() <= 40
+        && existsAfter(/databases/$(database)/documents/users/$(request.auth.uid))
+        && getAfter(/databases/$(database)/documents/users/$(request.auth.uid)).data.usernameNormalized == username
+        && getAfter(/databases/$(database)/documents/users/$(request.auth.uid)).data.displayName == request.resource.data.displayName
+        && usernameAvatarMatchesProfile(request.auth.uid, request.resource.data)
+        && request.resource.data.createdAt is timestamp
+        && request.resource.data.updatedAt is timestamp
+        && (!('avatarUrl' in request.resource.data) || request.resource.data.avatarUrl is string);
+      allow update: if signedIn()
+        && resource.data.uid == request.auth.uid
+        && request.resource.data.keys().hasOnly(['uid', 'username', 'usernameNormalized', 'displayName', 'avatarUrl', 'createdAt', 'updatedAt'])
+        && request.resource.data.keys().hasAll(['uid', 'username', 'usernameNormalized', 'displayName', 'createdAt', 'updatedAt'])
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.username == username
+        && request.resource.data.usernameNormalized == username
+        && request.resource.data.displayName is string
+        && request.resource.data.displayName.size() > 0
+        && request.resource.data.displayName.size() <= 40
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.updatedAt is timestamp
+        && getAfter(/databases/$(database)/documents/users/$(request.auth.uid)).data.usernameNormalized == username
+        && getAfter(/databases/$(database)/documents/users/$(request.auth.uid)).data.displayName == request.resource.data.displayName
+        && usernameAvatarMatchesProfile(request.auth.uid, request.resource.data)
+        && (!('avatarUrl' in request.resource.data) || request.resource.data.avatarUrl is string);
+      allow delete: if signedIn()
+        && resource.data.uid == request.auth.uid
+        && getAfter(/databases/$(database)/documents/users/$(request.auth.uid)).data.usernameNormalized != username;
+    }
+
+    match /friendships/{friendshipDocumentId} {
+      function validPair(data) {
+        return data.requesterId is string
+          && data.recipientId is string
+          && data.requesterId != data.recipientId
+          && data.userIds is list
+          && data.userIds.size() == 2
+          && data.userIds.hasAll([data.requesterId, data.recipientId])
+          && friendshipDocumentId == friendshipId(data.requesterId, data.recipientId);
+      }
+
+      allow read: if signedIn() && (resource == null || resource.data.userIds.hasAny([request.auth.uid]));
+      allow create: if signedIn()
+        && validPair(request.resource.data)
+        && request.resource.data.keys().hasOnly(['userIds', 'requesterId', 'recipientId', 'status', 'createdAt', 'updatedAt'])
+        && request.resource.data.status == 'pending'
+        && request.resource.data.requesterId == request.auth.uid
+        && exists(/databases/$(database)/documents/users/$(request.resource.data.recipientId))
+        && request.resource.data.createdAt is timestamp
+        && request.resource.data.updatedAt is timestamp;
+      allow update: if signedIn()
+        && validPair(request.resource.data)
+        && request.resource.data.userIds == resource.data.userIds
+        && request.resource.data.createdAt is timestamp
+        && request.resource.data.updatedAt is timestamp
+        && (
+          (resource.data.status == 'pending'
+            && request.resource.data.status in ['accepted', 'declined']
+            && resource.data.recipientId == request.auth.uid
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt']))
+          || (resource.data.status in ['declined', 'cancelled']
+            && request.resource.data.status == 'pending'
+            && request.auth.uid in resource.data.userIds
+            && request.resource.data.requesterId == request.auth.uid
+            && request.resource.data.recipientId in resource.data.userIds
+            && request.resource.data.recipientId != request.auth.uid
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['requesterId', 'recipientId', 'status', 'createdAt', 'updatedAt']))
+        );
+      allow delete: if signedIn()
+        && resource.data.userIds.hasAny([request.auth.uid])
+        && (resource.data.status == 'accepted'
+          || (resource.data.status == 'pending' && resource.data.requesterId == request.auth.uid));
     }
 
     match /places/{placeId} {
@@ -99,19 +217,20 @@ service cloud.firestore {
 
     match /users/{userId}/list/{placeId} {
       function validListEntry() {
-        return request.resource.data.keys().hasOnly(['placeId', 'rank', 'rating', 'updatedAt'])
-          && request.resource.data.keys().hasAll(['placeId', 'rank', 'rating', 'updatedAt'])
+        return request.resource.data.keys().hasOnly(['placeId', 'rank', 'rating', 'ratingScale', 'updatedAt'])
+          && request.resource.data.keys().hasAll(['placeId', 'rank', 'rating', 'ratingScale', 'updatedAt'])
           && request.resource.data.placeId == placeId
           && exists(/databases/$(database)/documents/places/$(placeId))
           && request.resource.data.rank is int
           && request.resource.data.rank >= 1
-          && request.resource.data.rating is int
-          && request.resource.data.rating >= 1
-          && request.resource.data.rating <= 10
+          && (request.resource.data.rating is int || request.resource.data.rating is float)
+          && request.resource.data.rating >= 0
+          && request.resource.data.rating <= 5
+          && request.resource.data.ratingScale == 5
           && request.resource.data.updatedAt is timestamp;
       }
 
-      allow read: if signedIn() && request.auth.uid == userId;
+      allow read: if signedIn() && (request.auth.uid == userId || isFriend(userId));
       allow create, update: if signedIn() && request.auth.uid == userId && validListEntry();
       allow delete: if signedIn() && request.auth.uid == userId;
     }

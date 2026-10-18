@@ -1,5 +1,6 @@
 import type { Place, Review } from '../types/models';
 import { getWeightedReviewRating } from '../features/reviewScoring';
+import { normalizeRating } from '../features/ratings';
 
 export type PlaceScore = { averageRating: number; reviewCount: number; latestReviewAt?: Date };
 
@@ -20,7 +21,7 @@ export function calculatePlaceScores(places: Place[], reviews: Review[]): Map<st
       return date && (!newest || date > newest) ? date : newest;
     }, undefined);
     return [place.id, {
-      averageRating: rows.length ? Math.round((total / rows.length) * 10) / 10 : 0,
+      averageRating: rows.length ? normalizeRating(total / rows.length) : 0,
       reviewCount: rows.length,
       latestReviewAt: latest,
     }];

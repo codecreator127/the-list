@@ -19,10 +19,27 @@ Copy `.env.example` to `.env` if you want to configure external services. Expo p
 
 - In local development, with no Firebase configuration, the app uses the local mock repository. Set `EXPO_PUBLIC_DATA_MODE=mock` to force mock data. Production exports require Firebase and the browser Places key and reject mock mode.
 - To use Firestore, set all six `EXPO_PUBLIC_FIREBASE_*` values and remove `EXPO_PUBLIC_DATA_MODE=mock` (or set it to `firebase`).
-- Firebase Authentication uses email and password. Enable **Email/Password** under Firebase Console → Authentication → Sign-in method, then publish `firestore.rules`. The app creates `users/{auth.uid}` on sign-up and returning-user sign-in. Users can read app data when signed in; each review is owned by the creating Auth UID and points to a stable Place document ID.
-- Firestore stores user profiles, reviews, a stable place record keyed by Google Place ID, and a materialized personal ranking at `users/{uid}/list/{placeId}`. Reviews remain the source of truth; review create/update/delete operations atomically update the user's ordered List. The first List read rebuilds this projection from that user's existing reviews, and `foodService.rebuildMyListFromReviews()` is available to repair it later. List entries keep only the place ID, rank, overall rating, and review update time. Google Place details and photos are fetched live rather than retained in Firestore because the Places API policy exempts Place IDs from its storage restrictions, but restricts storing other Places content. Review and List ownership use the authenticated UID.
+- Firebase Authentication uses email and password. Enable **Email/Password** under Firebase Console → Authentication → Sign-in method, then publish `firestore.rules` and `storage.rules`. The app creates `users/{auth.uid}` on sign-up and returning-user sign-in. Private profile documents are owner-readable; signed-in user discovery uses the public `usernames/{username}` profile index, which stores a display name, unique lowercase username, optional avatar URL, and timestamps. Email addresses remain in Firebase Authentication and are not used for discovery. The username index also reserves usernames atomically, and profile edits update it and the private profile in one transaction.
+- Profile pictures are stored in Firebase Storage under `users/{auth.uid}/profile/`. Storage rules restrict uploads and deletion to the signed-in owner and limit image size to 5 MB. Account settings show provider information; password reset is offered only when the account has an email/password provider.
+- Firestore stores profiles, one `friendships/{sortedUidA_sortedUidB}` document per pair, reviews, stable place records keyed by Google Place ID, and materialized personal rankings at `users/{uid}/list/{placeId}`. Ratings are numeric 0–5 values normalized to hundredths; review and List documents use `ratingScale: 5`. Friend request records transition from pending to accepted/declined, while cancellation and removal delete the record. Only accepted friends can read another user's persisted List; only the owner can change it. Review create/update/delete operations atomically update the user's ordered List. The first owner List read rebuilds this projection from existing reviews, and `foodService.rebuildMyListFromReviews()` is available to repair it later. List entries keep the place ID, rank, overall rating, rating scale, and review update time. Google Place details and photos are fetched live rather than retained in Firestore because the Places API policy exempts Place IDs from its storage restrictions, but restricts storing other Places content. Review ownership uses the authenticated UID.
 
-Run `npm run verify:firestore` to exercise the rules with two temporary Auth Emulator accounts and a local Firestore Emulator. It checks cross-user review visibility, UID-scoped queries, personal List ordering and isolation, profile creation metadata, owner-only review changes, stable Place IDs, client reinitialization, and unauthenticated access denial.
+### Rating data migration
+
+Existing reviews and personal List entries use legacy scales. The migration below reads both collections, normalizes review ratings to 0–5, and recalculates List ranks from reviews. It updates only review `rating`/`ratingScale` and List `rank`/`rating`/`ratingScale`; existing timestamps and unrelated fields are retained. Orphan List entries are reported and removed when applying. The default command is a dry run and never writes:
+
+```powershell
+npm run migrate:ratings -- --project-id <firebase-project-id>
+```
+
+Authenticate with Application Default Credentials first (`gcloud auth application-default login`) or set `GOOGLE_APPLICATION_CREDENTIALS` to a service-account key outside the repository. Review the printed project ID, rating changes, rank changes, and stale entry paths, and take a Firestore export/backup before applying. Run during a maintenance window so reviews are not being created or edited while the migration writes its reviewed snapshot. To apply after review, explicitly repeat the same project ID as a confirmation:
+
+```powershell
+npm run migrate:ratings -- --project-id <firebase-project-id> --apply --confirm-project <firebase-project-id>
+```
+
+The migration is idempotent; it is not run automatically by the app or deployment.
+
+Run `npm run verify:firestore` to exercise the rules with two temporary Auth Emulator accounts and local Firestore and Storage Emulators. It checks unique searchable profiles, profile updates visible to a second account's friend list and existing review authors, owner-only image upload and deletion, the 5 MB upload limit, the mutual friend-request lifecycle, friend-only List visibility and removal, review ownership, stable Place IDs, client reinitialization, and unauthenticated access denial.
 
 ## Google Places
 
@@ -51,4 +68,4 @@ Google Places content is shown with Google Maps attribution and photo author att
 - `theme/` — shared color, spacing, radius and shadow tokens
 - `types/` — domain types
 
-Ratings shown as **The List** are calculated from our Firestore reviews. Personal rank uses the overall 10-point rating with optional category ratings contributing a combined 10%. Google ratings are displayed separately when available. Reviews, persisted personal List entries, and app-owned user data persist in Firestore when Firebase is configured; mock mode remains in-memory and resets on reload.
+Ratings shown as **The List** are calculated from our Firestore reviews and displayed to two decimal places on a 5-point scale. Personal rank uses the overall rating with optional category ratings contributing a combined 10%. Google ratings are displayed separately when available. Reviews, persisted personal List entries, and app-owned user data persist in Firestore when Firebase is configured; mock mode remains in-memory and resets on reload.

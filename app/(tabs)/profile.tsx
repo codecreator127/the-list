@@ -6,7 +6,7 @@ import { Avatar, Button, FilterChip, Page, Rating, SectionTitle, Text } from '..
 import { PressableScale } from '../../components/motion';
 import { foodService } from '../../services/foodService';
 import { isFirebaseRepositoryEnabled } from '../../services/firebase';
-import { signOutUser, watchAuthState } from '../../services/auth';
+import { watchAuthState } from '../../services/auth';
 import type { Place, Review, User } from '../../types/models';
 import { colors, radius } from '../../theme';
 
@@ -19,24 +19,27 @@ export default function ProfileScreen() {
   const [authReady, setAuthReady] = useState(false);
   const [error, setError] = useState('');
 
-  useFocusEffect(useCallback(() => watchAuthState(authUser => {
-    setAuthReady(true);
-    const id = authUser?.uid ?? (isFirebaseRepositoryEnabled ? '' : 'u1');
-    if (!id) {
-      setUser({ id: 'guest', name: 'Guest', handle: 'guest', initials: 'G', color: '#8CA79A' });
-      setReviews([]);
-      return;
-    }
-    Promise.all([foodService.getUser(id), foodService.getCurrentUserReviews()])
-      .then(([profile, rows]) => { setUser(profile); setReviews(rows); setError(''); })
-      .catch(cause => setError(cause instanceof Error ? cause.message : 'Could not load your reviews.'));
-  }), []));
-
-  async function handleLogout() {
-    if (!isFirebaseRepositoryEnabled) { router.replace('/'); return; }
-    try { await signOutUser(); router.replace('/'); }
-    catch (cause) { setError(cause instanceof Error ? cause.message : 'Could not log out.'); }
-  }
+  useFocusEffect(useCallback(() => {
+    let active = true;
+    const unsubscribe = watchAuthState(authUser => {
+      if (!active) return;
+      setAuthReady(true);
+      const id = authUser?.uid ?? (isFirebaseRepositoryEnabled ? '' : 'u1');
+      if (!id) {
+        setUser({ id: 'guest', name: 'Guest', handle: 'guest', initials: 'G', color: '#8CA79A' });
+        setReviews([]);
+        return;
+      }
+      Promise.all([foodService.getUser(id), foodService.getCurrentUserReviews()])
+        .then(([profile, rows]) => {
+          if (active) { setUser(profile); setReviews(rows); setError(''); }
+        })
+        .catch(cause => {
+          if (active) setError(cause instanceof Error ? cause.message : 'Could not load your profile.');
+        });
+    });
+    return () => { active = false; unsubscribe(); };
+  }, []));
 
   return <Page>
     <Text size={30} weight="700">Profile</Text>
@@ -45,9 +48,13 @@ export default function ProfileScreen() {
       <Avatar user={user} size={60} />
       <View style={{ flex: 1 }}>
         <Text size={19} weight="700">{user.name}</Text>
-        <Text size={13} color={colors.muted} style={{ marginTop: 4 }}>{myReviews.length} {myReviews.length === 1 ? 'review' : 'reviews'} shared</Text>
+        <Text size={13} color={colors.muted} style={{ marginTop: 4 }}>@{user.username ?? user.handle}</Text>
+        <Text size={12} color={colors.muted} style={{ marginTop: 3 }}>{myReviews.length} {myReviews.length === 1 ? 'review' : 'reviews'} shared</Text>
       </View>
-      {isFirebaseRepositoryEnabled && user.id !== 'guest' && <Button title="Log out" variant="ghost" size="small" onPress={handleLogout} />}
+    </View>}
+    {user && user.id !== 'guest' && <View style={{ flexDirection: 'row', gap: 10, marginTop: 12 }}>
+      <Button title="Edit profile" icon="create-outline" onPress={() => router.push('/edit-profile')} style={{ flex: 1 }} />
+      <Button title="Settings" icon="settings-outline" variant="secondary" onPress={() => router.push('/settings')} style={{ flex: 1 }} />
     </View>}
     {isFirebaseRepositoryEnabled && authReady && user?.id === 'guest' ? <View style={{ marginTop: 14 }}><Button title="Log in or create an account" icon="person-outline" onPress={() => router.push('/auth')} /></View> : null}
     {error ? <Text size={12} color={colors.danger} style={{ marginTop: 12 }}>{error}</Text> : null}

@@ -16,6 +16,7 @@ type SemanticPalette = {
 	rating: string;
 	border: string;
 	error: string;
+	success: string;
 	disabled: string;
 	focus: string;
 	scrim: string;
@@ -71,6 +72,7 @@ const light = withLegacyAliases({
 	rating: '#94600A',
 	border: '#CFD2C6',
 	error: '#B63E35',
+	success: '#557654',
 	disabled: '#8A897F',
 	focus: '#974108',
 	scrim: 'rgba(23, 24, 22, 0.62)',
@@ -93,6 +95,7 @@ const dark = withLegacyAliases({
 	rating: '#F6B94A',
 	border: '#343832',
 	error: '#E7675D',
+	success: '#A6C89A',
 	disabled: '#716D62',
 	focus: '#FF9138',
 	scrim: 'rgba(17, 19, 17, 0.72)',

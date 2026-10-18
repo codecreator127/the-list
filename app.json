@@ -11,6 +11,12 @@
       "expo-asset",
       "expo-font",
       [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow The List to use a photo as your profile picture."
+        }
+      ],
+      [
         "expo-location",
         {
           "locationWhenInUsePermission": "Allow The List to use your location to find places within your chosen distance."

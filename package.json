@@ -12,7 +12,9 @@
     "ios": "expo start --offline --ios",
     "web": "expo start --offline --web",
     "typecheck": "tsc --noEmit",
-    "verify:firestore": "firebase emulators:exec --project demo-the-list --only auth,firestore \"node scripts/verify-firestore-schema.mjs\""
+    "verify:firestore": "firebase emulators:exec --project demo-the-list --only auth,firestore,storage \"node scripts/verify-firestore-schema.mjs\"",
+    "test:ratings": "tsx --test features/ratings.test.ts",
+    "migrate:ratings": "tsx scripts/migrate-ratings.ts"
   },
   "dependencies": {
     "@expo-google-fonts/dm-mono": "^0.4.2",
@@ -24,6 +26,7 @@
     "expo-asset": "~11.0.5",
     "expo-constants": "~17.0.8",
     "expo-font": "~13.0.4",
+    "expo-image-picker": "~16.0.6",
     "expo-linking": "~7.0.5",
     "expo-location": "~18.0.10",
     "expo-router": "~4.0.21",
@@ -40,6 +43,8 @@
   },
   "devDependencies": {
     "@types/react": "~18.3.12",
+    "firebase-admin": "^13.10.0",
+    "tsx": "^4.23.15",
     "typescript": "~5.3.3"
   }
 }

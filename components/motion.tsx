@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type PropsWithChildren } from 'react';
 import { AccessibilityInfo, Animated, Easing, Platform, Pressable, type PressableProps, type StyleProp, type ViewStyle } from 'react-native';
 
-function useReducedMotion() {
+export function useReducedMotion() {
   const [reduced, setReduced] = useState<boolean | null>(null);
   useEffect(() => {
     let mounted = true;
