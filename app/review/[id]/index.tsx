@@ -11,6 +11,11 @@ import { colors, radius, typefaces, useTheme } from '../../../theme';
 import { PressableScale, useReducedMotion } from '../../../components/motion';
 import { getListPlacementPreview, reviewRankingCandidate, type RankedPlace } from '../../../features/myList';
 import { normalizeRating, ratingFromSliderProgress, RATING_SCALE } from '../../../features/ratings';
+import * as ImagePicker from 'expo-image-picker';
+import { firebaseAuth } from '../../../services/auth';
+import { uploadReviewPhoto, deleteReviewPhoto } from '../../../services/profilePhoto';
+import { ReviewPhoto } from '../../../components/ReviewPhoto';
+import type { ReviewPhoto as ReviewPhotoData } from '../../../types/models';
 
 function StarScale({ value, onChange, label, compact = false, allowClear = false }: { value: number; onChange: (rating: number) => void; label: string; compact?: boolean; allowClear?: boolean }) {
   const s = makeStyles();
@@ -147,6 +152,10 @@ export default function WriteReview() {
   const [rating, setRating] = useState(0);
   const [subRatings, setSubRatings] = useState<Partial<Record<ReviewSubcategory, number>>>({});
   const [body, setBody] = useState('');
+  const [photo, setPhoto] = useState<ImagePicker.ImagePickerAsset>();
+  const [removePhoto, setRemovePhoto] = useState(false);
+  const [cleanupPending, setCleanupPending] = useState<ReviewPhotoData>();
+  const [reviewDeleted, setReviewDeleted] = useState(false);
   const [originalReview, setOriginalReview] = useState<Review>();
   const [reviewLoaded, setReviewLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -163,6 +172,7 @@ export default function WriteReview() {
 
   const hasChanges = !!originalReview && (
     rating !== originalReview.rating
+    || !!photo || removePhoto
     || body.trim() !== originalReview.text
     || reviewSubcategories.some(category => subRatings[category] !== originalReview.subRatings?.[category])
   );
@@ -233,22 +243,55 @@ export default function WriteReview() {
   }, [id, isEditing]);
 
   useEffect(() => {
-    if (!success) return;
+    if (!success || cleanupPending) return;
     const timer = setTimeout(() => router.back(), 360);
     return () => clearTimeout(timer);
-  }, [success]);
+  }, [success, cleanupPending]);
+
+  async function selectPhoto() {
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.8 });
+      if (result.canceled) return;
+      const asset = result.assets[0];
+      if (!asset || (asset.fileSize ?? asset.file?.size ?? 0) > 4 * 1024 * 1024) throw new Error('Choose a photo smaller than 4 MB.');
+      setPhoto(asset); setRemovePhoto(false); setError('');
+    } catch (cause) { setError(cause instanceof Error ? cause.message : 'Could not select a photo.'); }
+  }
+
+  async function retryCleanup() {
+    if (!cleanupPending) return;
+    try {
+      await deleteReviewPhoto(cleanupPending);
+      setCleanupPending(undefined); setError('');
+      if (reviewDeleted) router.back();
+    } catch { setError('Photo cleanup is still unavailable. Please retry.'); }
+  }
 
   async function submit() {
     if (submissionInProgress.current || deletionInProgress.current || (isEditing && !hasChanges)) return;
     setError('');
     submissionInProgress.current = true;
     setSaving(true);
+    let stagedPhoto: ReviewPhotoData | undefined;
     try {
-      if (isEditing) await foodService.updateReview(id, rating, body.trim(), subRatings);
-      else await foodService.addReview(id, rating, body.trim(), subRatings);
+      if (photo) {
+        const uid = firebaseAuth?.currentUser?.uid;
+        if (!uid) throw new Error('Sign in before adding a photo.');
+        stagedPhoto = await uploadReviewPhoto(uid, photo);
+      }
+      const photoChange = stagedPhoto ?? (removePhoto ? null : undefined);
+      const result = isEditing ? await foodService.updateReview(id, rating, body.trim(), subRatings, photoChange)
+        : await foodService.addReview(id, rating, body.trim(), subRatings, stagedPhoto);
+      setCleanupPending(result.cleanupPending);
+      if (result.cleanupPending) setError('Your review was saved, but the previous photo could not be removed. Retry photo cleanup below.');
       setSuccess(true);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Could not save your review. Please try again.');
+      let message = cause instanceof Error ? cause.message : 'Could not save your review. Please try again.';
+      if (stagedPhoto) {
+        try { await deleteReviewPhoto(stagedPhoto); }
+        catch { setCleanupPending(stagedPhoto); message += ' The new photo also needs cleanup; retry below.'; }
+      }
+      setError(message);
       submissionInProgress.current = false;
       setSaving(false);
     }
@@ -260,8 +303,13 @@ export default function WriteReview() {
     setDeleting(true);
     setError('');
     try {
-      await foodService.deleteReview(id);
+      const result = await foodService.deleteReview(id);
       setDeleteConfirmationVisible(false);
+      if (result.cleanupPending) {
+        setReviewDeleted(true); setCleanupPending(result.cleanupPending);
+        setError('Your review was deleted, but its photo could not be removed. Retry photo cleanup below.');
+        return;
+      }
       if (router.canGoBack()) router.back();
       else router.replace('/(tabs)/profile');
     } catch (cause) {
@@ -320,11 +368,21 @@ export default function WriteReview() {
       <Input accessibilityLabel="Your review note (optional)" value={body} onChangeText={setBody} multiline maxLength={500} textAlignVertical="top" placeholder="What did you order? What should someone know before they go?" placeholderTextColor={colors.muted} style={s.input} />
       {error ? <Text size={12} color={colors.danger} style={{ marginTop: 10 }}>{error}</Text> : null}
       <Text size={11} color={colors.muted} style={{ marginTop: 7 }}>{body.length}/500 characters</Text>
+      {isFirebaseRepositoryEnabled ? <View style={{ marginTop: 20 }}>
+        <Text size={13} weight="600">Photo (optional)</Text>
+        <Text size={11} color={colors.muted} style={{ marginTop: 5 }}>One JPEG, PNG or WebP, up to 4 MB.</Text>
+        {photo?.uri || (!removePhoto && originalReview?.photo?.url) ? <ReviewPhoto uri={photo?.uri ?? originalReview!.photo!.url} label="Review photo preview" /> : null}
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 10 }}>
+          <Button title={photo || (!removePhoto && originalReview?.photo) ? 'Change photo' : 'Add photo'} icon="image-outline" variant="secondary" size="small" onPress={selectPhoto} disabled={saving || deleting || success || !!cleanupPending} />
+          {photo || (!removePhoto && originalReview?.photo) ? <Button title="Remove photo" icon="close-outline" variant="ghost" size="small" disabled={saving || deleting || success || !!cleanupPending} onPress={() => { setPhoto(undefined); setRemovePhoto(!!originalReview?.photo); }} /> : null}
+        </View>
+      </View> : null}
+      {cleanupPending ? <Button title="Retry photo cleanup" variant="secondary" size="small" onPress={retryCleanup} style={{ marginTop: 12 }} /> : null}
       <View style={{ marginTop: 22 }}>
         <Button
           title={success ? (isEditing ? 'Changes saved' : 'Review shared') : saving ? 'Saving…' : isEditing ? 'Save changes' : 'Share review'}
           icon={success ? 'checkmark-circle-outline' : undefined}
-          disabled={saving || deleting || (isEditing && (!reviewLoaded || !hasChanges))}
+          disabled={success || !!cleanupPending || saving || deleting || (isEditing && (!reviewLoaded || !hasChanges))}
           loading={saving}
           onPress={submit}
         />
@@ -335,7 +393,7 @@ export default function WriteReview() {
           variant="destructive"
           size="small"
           icon="trash-outline"
-          disabled={!reviewLoaded || !originalReview || saving || deleting}
+          disabled={!reviewLoaded || !originalReview || saving || deleting || success || !!cleanupPending}
           onPress={() => { setError(''); setDeleteConfirmationVisible(true); }}
           style={s.deleteButton}
         />
@@ -353,7 +411,7 @@ export default function WriteReview() {
           <View style={s.confirmationIcon}><Ionicons name="trash-outline" size={22} color={colors.error} /></View>
           <Text size={21} weight="700" style={{ marginTop: 15 }}>Delete review?</Text>
           <Text size={14} color={colors.textSecondary} style={{ marginTop: 8, lineHeight: 21 }}>
-            This will remove your review and the place from your List.
+            This will remove your review, its photo, and the place from your List.
           </Text>
           {error ? <Text size={12} color={colors.error} style={{ marginTop: 10 }}>{error}</Text> : null}
           <View style={s.confirmationActions}>
@@ -362,7 +420,7 @@ export default function WriteReview() {
               variant="secondary"
               disabled={deleting}
               onPress={() => setDeleteConfirmationVisible(false)}
-              style={{ flex: 1 }}
+              style={{ flex: 1, minWidth: 120 }}
             />
             <Button
               title="Delete review"
@@ -370,7 +428,7 @@ export default function WriteReview() {
               loading={deleting}
               disabled={deleting}
               onPress={deleteReview}
-              style={{ flex: 1 }}
+              style={{ flex: 1, minWidth: 120 }}
             />
           </View>
         </View>
@@ -401,17 +459,17 @@ const makeStyles = () => StyleSheet.create({
   previewStatus: { marginTop: 9 },
   previewPlaceholder: { paddingHorizontal: 8 },
   scaleRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 5, paddingVertical: 8 },
-  scaleStar: { width: 42, height: 46, borderRadius: 13, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.white, borderWidth: 1, borderColor: colors.line },
-  compactScaleStar: { width: 42, height: 42, borderRadius: 11 },
+  scaleStar: { width: 44, height: 48, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surfaceElevated, borderWidth: 1, borderColor: colors.border },
+  compactScaleStar: { width: 44, height: 44 },
   selected: { backgroundColor: colors.lime, borderColor: colors.star },
   labelRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   categories: { marginTop: 20, padding: 15, borderRadius: radius.md, backgroundColor: colors.white, borderWidth: 1, borderColor: colors.line },
   categoryRow: { marginTop: 15 },
   input: { minHeight: 175, marginTop: 12, padding: 15, borderRadius: radius.md, backgroundColor: colors.white, borderWidth: 1, borderColor: colors.line, fontSize: 15, lineHeight: 23, fontFamily: typefaces.sansRegular, color: colors.ink },
   deleteAction: { marginTop: 14, paddingTop: 10, borderTopWidth: 1, borderTopColor: colors.border },
-  deleteButton: { alignSelf: 'flex-start', paddingHorizontal: 0 },
+  deleteButton: { alignSelf: 'flex-start' },
   modalBackdrop: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24, backgroundColor: colors.scrim },
   confirmation: { width: '100%', maxWidth: 420, padding: 24, backgroundColor: colors.surfaceElevated, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border },
   confirmationIcon: { width: 42, height: 42, borderRadius: 21, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.surface },
-  confirmationActions: { flexDirection: 'row', gap: 10, marginTop: 24 },
+  confirmationActions: { flexDirection: 'row', flexWrap:'wrap', gap: 10, marginTop: 24 },
 });

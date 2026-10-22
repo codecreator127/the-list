@@ -1,23 +1,34 @@
-import { deleteObject, getDownloadURL, getStorage, ref, uploadBytes } from 'firebase/storage';
+import { Platform } from 'react-native';
 import type { ImagePickerAsset } from 'expo-image-picker';
-import { firebaseApp } from './firebase';
+import { firebaseAuth } from './auth';
 
-const maxProfilePhotoSize = 5 * 1024 * 1024;
+const maxProfilePhotoSize = 4 * 1024 * 1024;
 
-function profileStorage() {
-  if (!firebaseApp?.options.storageBucket) {
-    throw new Error('Firebase Storage is not configured. Set EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET and try again.');
-  }
-  return getStorage(firebaseApp);
+function endpoint(kind: 'profile' | 'review') {
+  const base = process.env.EXPO_PUBLIC_UPLOAD_API_URL?.replace(/\/$/, '') ?? '';
+  if (!base && Platform.OS !== 'web') throw new Error('Photo uploads need EXPO_PUBLIC_UPLOAD_API_URL configured.');
+  if (base && !base.startsWith('https://') && !__DEV__) throw new Error('Photo uploads require a secure server URL.');
+  return `${base}/api/${kind}-photo`;
 }
 
-export async function uploadProfilePhoto(userId: string, asset: ImagePickerAsset) {
-  if ((asset.file && asset.file.size > maxProfilePhotoSize) || (asset.fileSize && asset.fileSize > maxProfilePhotoSize)) {
-    throw new Error('Choose a profile picture smaller than 5 MB.');
-  }
-  const contentType = asset.mimeType ?? asset.file?.type ?? 'image/jpeg';
-  if (!contentType.startsWith('image/')) throw new Error('Choose an image file for your profile picture.');
+async function photoRequest(method: 'POST' | 'DELETE', body: Blob | string, contentType: string, kind: 'profile' | 'review' = 'profile') {
+  const user = firebaseAuth?.currentUser;
+  if (!user) throw new Error('Sign in again before uploading a photo.');
+  const response = await fetch(endpoint(kind), {
+    method, body, headers: { Authorization: `Bearer ${await user.getIdToken()}`, 'Content-Type': contentType },
+  });
+  let result;
+  try { result = await response.json(); }
+  catch { throw new Error('Photo uploads are unavailable. Check that the upload server is deployed.'); }
+  if (!response.ok) throw new Error(result.error ?? 'Could not upload your photo.');
+  return result;
+}
 
+async function uploadPhoto(userId: string, asset: ImagePickerAsset, kind: 'profile' | 'review'): Promise<{ path: string; url: string }> {
+  if (firebaseAuth?.currentUser?.uid !== userId) throw new Error('Sign in again before uploading a photo.');
+  if ((asset.file?.size ?? asset.fileSize ?? 0) > maxProfilePhotoSize) throw new Error('Choose a photo smaller than 4 MB.');
+  const contentType = asset.mimeType ?? asset.file?.type ?? 'image/jpeg';
+  if (!['image/jpeg', 'image/png', 'image/webp'].includes(contentType)) throw new Error('Choose a JPEG, PNG, or WebP image.');
   let file: Blob;
   if (asset.file) file = asset.file;
   else {
@@ -25,34 +36,25 @@ export async function uploadProfilePhoto(userId: string, asset: ImagePickerAsset
     if (!response.ok) throw new Error('Could not read the selected image.');
     file = await response.blob();
   }
-  if (file.size > maxProfilePhotoSize) throw new Error('Choose a profile picture smaller than 5 MB.');
+  if (file.size > maxProfilePhotoSize) throw new Error('Choose a photo smaller than 4 MB.');
+  return photoRequest('POST', file, contentType, kind);
+}
 
-  const extension = contentType.split('/')[1]?.replace(/[^a-z0-9]/gi, '') || 'jpg';
-  const path = `users/${userId}/profile/${Date.now()}-${Math.random().toString(36).slice(2)}.${extension}`;
-  const storageRef = ref(profileStorage(), path);
-  await uploadBytes(storageRef, file, { contentType });
-  try {
-    return { path, url: await getDownloadURL(storageRef) };
-  } catch (cause) {
-    try {
-      await deleteObject(storageRef);
-    } catch (cleanupCause) {
-      const original = cause instanceof Error ? cause.message : 'Could not retrieve the profile picture URL.';
-      const cleanup = cleanupCause instanceof Error ? cleanupCause.message : 'Storage cleanup failed.';
-      throw new Error(`${original} The uploaded image could not be cleaned up: ${cleanup}`);
-    }
-    throw cause;
-  }
+export const uploadProfilePhoto = (userId: string, asset: ImagePickerAsset) => uploadPhoto(userId, asset, 'profile');
+export const uploadReviewPhoto = (userId: string, asset: ImagePickerAsset) => uploadPhoto(userId, asset, 'review');
+export async function deleteReviewPhoto(photo: { path: string }) {
+  if (!photo.path.startsWith('cloudinary:the-list/reviews/')) throw new Error('Invalid review photo.');
+  await photoRequest('DELETE', JSON.stringify({ publicId: photo.path.slice('cloudinary:'.length) }), 'application/json', 'review');
 }
 
 export async function deleteProfilePhoto(path: string) {
-  await deleteObject(ref(profileStorage(), path));
+  if (!path.startsWith('cloudinary:')) return;
+  await photoRequest('DELETE', JSON.stringify({ publicId: path.slice('cloudinary:'.length) }), 'application/json');
 }
 
 export async function deletePreviousProfilePhoto(userId: string, url: string) {
-  const storage = profileStorage();
-  const bucket = storage.app.options.storageBucket;
-  if (!bucket || !url.startsWith(`https://firebasestorage.googleapis.com/v0/b/${bucket}/o/`)) return;
-  const oldPhoto = ref(storage, url);
-  if (oldPhoto.fullPath.startsWith(`users/${userId}/profile/`)) await deleteObject(oldPhoto);
+  if (firebaseAuth?.currentUser?.uid !== userId) throw new Error('Sign in again before uploading a photo.');
+  // Preserve legacy avatars; only this service's URLs are cleanup candidates.
+  const match = /^https:\/\/res\.cloudinary\.com\/[a-z0-9_-]+\/image\/upload\/(the-list\/profiles\/[a-f0-9]{64}\/[a-f0-9-]{36})\.webp$/.exec(url);
+  if (match) await deleteProfilePhoto(`cloudinary:${match[1]}`);
 }

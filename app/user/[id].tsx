@@ -7,7 +7,7 @@ import { PressableScale } from '../../components/motion';
 import { foodService } from '../../services/foodService';
 import type { RankedPlace } from '../../features/myList';
 import type { User } from '../../types/models';
-import { colors, typefaces, useTheme } from '../../theme';
+import { colors, radius, typefaces, useTheme } from '../../theme';
 
 function FriendListEntry({ item }: { item: RankedPlace }) {
   const place = item.place;
@@ -86,7 +86,7 @@ function makeStyles() { return StyleSheet.create({
   list: { width: '100%', paddingHorizontal: 24, backgroundColor: colors.surfaceElevated, borderWidth: 1, borderColor: colors.border },
   card: { minHeight: 82, flexDirection: 'row', alignItems: 'center', gap: 11, borderTopWidth: 1, borderTopColor: colors.border, paddingVertical: 11 },
   rank: { width: 20, fontFamily: typefaces.mono, letterSpacing: 1 },
-  photo: { width: 58, height: 58, borderRadius: 2, backgroundColor: colors.surfaceStrong },
+  photo: { width: 58, height: 58, borderRadius: radius.sm, backgroundColor: colors.surfaceStrong },
   photoFallback: { alignItems: 'center', justifyContent: 'center' },
   info: { flex: 1, minWidth: 0 },
   stars: { flexDirection: 'row', gap: 1, marginTop: 5 },

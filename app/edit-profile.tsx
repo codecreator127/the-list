@@ -9,12 +9,13 @@ import { firebaseAuth, watchAuthState } from '../services/auth';
 import { isFirebaseRepositoryEnabled } from '../services/firebase';
 import { deletePreviousProfilePhoto, deleteProfilePhoto, uploadProfilePhoto } from '../services/profilePhoto';
 import type { User } from '../types/models';
-import { colors, radius } from '../theme';
+import { colors, radius, useTheme } from '../theme';
 
 const validUsername = /^[a-z0-9][a-z0-9_]{2,19}$/;
 const errorMessage = (cause: unknown, fallback: string) => cause instanceof Error ? cause.message : fallback;
 
 export default function EditProfileScreen() {
+  useTheme();
   const [user, setUser] = useState<User>();
   const [username, setUsername] = useState('');
   const [displayName, setDisplayName] = useState('');
@@ -78,7 +79,7 @@ export default function EditProfileScreen() {
       if (result.canceled) return;
       const asset = result.assets[0];
       if (!asset || asset.type === 'video') throw new Error('Choose an image file for your profile picture.');
-      if (asset.fileSize && asset.fileSize > 5 * 1024 * 1024) throw new Error('Choose a profile picture smaller than 5 MB.');
+      if (asset.fileSize && asset.fileSize > 4 * 1024 * 1024) throw new Error('Choose a profile picture smaller than 4 MB.');
       setPhoto(asset);
     } catch (cause) {
       setError(errorMessage(cause, 'Could not open your photo library.'));
@@ -155,7 +156,7 @@ export default function EditProfileScreen() {
         <Avatar user={photo ? { ...user, avatarUrl: photo.uri } : user} size={70}/>
         <View style={{ flex: 1 }}>
           <Text size={14} weight="600">Profile picture</Text>
-          <Text size={12} color={colors.muted} style={{ marginTop: 4 }}>Square images, up to 5 MB.</Text>
+          <Text size={12} color={colors.muted} style={{ marginTop: 4 }}>JPEG, PNG or WebP, up to 4 MB.</Text>
           {isFirebaseRepositoryEnabled ? <Button title={photo ? 'Choose a different photo' : 'Upload photo'} icon="image-outline" variant="secondary" size="small" disabled={saving} onPress={selectPhoto} style={{ alignSelf: 'flex-start', marginTop: 10 }}/> : <Text size={11} color={colors.muted} style={{ marginTop: 8 }}>Photo uploads are available for Firebase accounts.</Text>}
         </View>
       </View>

@@ -1,4 +1,5 @@
-import { collection, deleteField, doc, endAt, getDoc, getDocs, limit, orderBy, query, runTransaction, serverTimestamp, startAt, where } from 'firebase/firestore';
+import { collection, deleteField, doc, endAt, getDoc, getDocs, getDocsFromServer, limit, onSnapshot, orderBy, query, runTransaction, serverTimestamp, startAt, where } from 'firebase/firestore';
+import { createBatchedReads } from './batchedReads';
 import type { PersonalListEntry, Place, Review, User } from '../types/models';
 import { firestore } from './firebase';
 import { firebaseAuth } from './auth';
@@ -10,7 +11,7 @@ const db = () => { if (!firestore) throw new Error('Firebase is not configured.'
 const asDate = (value: any): Date | undefined => value?.toDate ? value.toDate() : value instanceof Date ? value : undefined;
 const placeDocumentId = (googlePlaceId: string) => `pl_${googlePlaceId}`;
 function fromPlace(id: string, raw: any): Place { return { id, googlePlaceId: raw.googlePlaceId, name: '', address: '', latitude: undefined, longitude: undefined, category: 'Food & drink', area: '', image: '', price: '$$', description: '', averageRating: 0, reviewCount: 0, createdAt: asDate(raw.createdAt), updatedAt: asDate(raw.updatedAt) }; }
-function fromReview(id: string, raw: any): Review { const createdAt=asDate(raw.createdAt);return { id, placeId:raw.placeId, userId:raw.userId, rating:normalizeStoredRating(raw.rating,raw.ratingScale,5), subRatings:raw.subRatings, text:raw.text, date:createdAt?.toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'numeric'})??'Recently', createdAt, updatedAt:asDate(raw.updatedAt) }; }
+function fromReview(id: string, raw: any): Review { const createdAt=asDate(raw.createdAt);return { id, placeId:raw.placeId, userId:raw.userId, rating:normalizeStoredRating(raw.rating,raw.ratingScale,5), subRatings:raw.subRatings, photo:raw.photo, text:raw.text, date:createdAt?.toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'numeric'})??'Recently', createdAt, updatedAt:asDate(raw.updatedAt) }; }
 function toUser(id: string, profile: any): User { const name=profile.displayName||'List member';const username=profile.username||'';return {id,name,handle:username||name.toLowerCase().replace(/\s+/g,''),username,usernameNormalized:profile.usernameNormalized,initials:name.split(/\s+/).map((part:string)=>part[0]).join('').slice(0,2).toUpperCase(),color:'#8CA79A',avatarUrl:profile.avatarUrl,createdAt:asDate(profile.createdAt),updatedAt:asDate(profile.updatedAt)}; }
 function friendshipId(userA:string,userB:string):string { return [userA,userB].sort().join('_'); }
 function fromFriendship(id:string,raw:any):Friendship { return {id,userIds:raw.userIds,requesterId:raw.requesterId,recipientId:raw.recipientId,status:raw.status,createdAt:asDate(raw.createdAt),updatedAt:asDate(raw.updatedAt)}; }
@@ -42,6 +43,24 @@ function advanceListRevision(transaction: any, inputs: any) {
 }
 
 export const firestoreRepository: FoodRepository = {
+ async getPlacesByIds(ids) {
+  return (await createBatchedReads(db()).places(ids)).map(row => fromPlace(row.id, row.data()));
+ },
+ async getUsers(ids) {
+  const rows = await createBatchedReads(db()).profiles(ids);
+  const profiles = new Map<string, User>();
+  for (const row of rows) {
+   const profile = toUser(row.data().uid, row.data());
+   const prior = profiles.get(profile.id);
+   if (!prior || (profile.updatedAt?.getTime() ?? 0) > (prior.updatedAt?.getTime() ?? 0)) profiles.set(profile.id, profile);
+  }
+  return [...new Set(ids)].map(id => profiles.get(id) ?? toUser(id, { displayName: 'List member' }));
+ },
+ async getReviewsByUsers(ids) { return (await createBatchedReads(db()).reviewsByUsers(ids)).map(row => fromReview(row.id, row.data())); },
+ watchFriendships(userId,onChange,onError) { return onSnapshot(query(friendshipsCollection(),where('userIds','array-contains',userId)),snapshot=>onChange(snapshot.docs.map(row=>fromFriendship(row.id,row.data()))),onError); },
+ async getRecentReviewsByUsers(ids) {
+  return (await createBatchedReads(db()).recentFriendReviews(ids)).map(row => fromReview(row.id, row.data()));
+ },
  async listPlaces() { const snapshot=await getDocs(placesCollection());return snapshot.docs.map(row=>fromPlace(row.id,row.data())); },
  async getPlace(id) { const snapshot=await getDoc(doc(db(),'places',id));return snapshot.exists()?fromPlace(snapshot.id,snapshot.data()):null; },
  async savePlace(place) {
@@ -72,8 +91,8 @@ export const firestoreRepository: FoodRepository = {
    const inputs=await readProjectionInputs(transaction,userId);const [prior,placeSnapshot]=await Promise.all([transaction.get(reference),transaction.get(doc(db(),'places',input.placeId))]);
    if(prior.exists()||inputs.reviewSnapshot.docs.some((row:any)=>row.data().placeId===input.placeId))throw new Error('You have already left a review for this place.');
    if(!placeSnapshot.exists())throw new Error('This place is not saved yet. Reopen it from search and try again.');
-   const rating=normalizeRating(input.rating);const now=serverTimestamp();const nowDate=new Date();created={id:reference.id,placeId:input.placeId,userId,rating,...(input.subRatings?{subRatings:input.subRatings}:{}),text:input.text,date:'Just now',createdAt:nowDate,updatedAt:nowDate};
-   transaction.set(reference,{placeId:input.placeId,userId,rating,ratingScale:5,...(input.subRatings?{subRatings:input.subRatings}:{}),text:input.text,createdAt:now,updatedAt:now});
+   const rating=normalizeRating(input.rating);const now=serverTimestamp();const nowDate=new Date();created={id:reference.id,placeId:input.placeId,userId,rating,...(input.subRatings?{subRatings:input.subRatings}:{}),text:input.text,...(input.photo?{photo:input.photo}:{}),date:'Just now',createdAt:nowDate,updatedAt:nowDate};
+   transaction.set(reference,{placeId:input.placeId,userId,rating,ratingScale:5,...(input.subRatings?{subRatings:input.subRatings}:{}),text:input.text,...(input.photo?{photo:input.photo}:{}),createdAt:now,updatedAt:now});
    const reviews=inputs.reviewSnapshot.docs.map((row:any)=>fromReview(row.id,row.data()));persistListProjection(transaction,userId,inputs.listSnapshot,[...reviews,created],{placeId:input.placeId,updatedAt:now});advanceListRevision(transaction,inputs);
   });
   return created;
@@ -84,8 +103,8 @@ export const firestoreRepository: FoodRepository = {
    const inputs=await readProjectionInputs(transaction,userId);const prior=await transaction.get(reference);
    if(!prior.exists()||prior.data().userId!==userId)throw new Error('This review could not be found.');
    const before=fromReview(prior.id,prior.data());const now=serverTimestamp();const nowDate=new Date();
-   const rating=normalizeRating(input.rating);updated={...before,rating,text:input.text,...(input.subRatings!==undefined?{subRatings:input.subRatings}:{}),date:nowDate.toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'numeric'}),updatedAt:nowDate};
-   transaction.update(reference,{rating,ratingScale:5,text:input.text,...(input.subRatings!==undefined?{subRatings:input.subRatings}:{}),updatedAt:now});
+   const rating=normalizeRating(input.rating);updated={...before,rating,text:input.text,...(input.photo!==undefined?{photo:input.photo??undefined}:{}),...(input.subRatings!==undefined?{subRatings:input.subRatings}:{}),date:nowDate.toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'numeric'}),updatedAt:nowDate};
+   transaction.update(reference,{rating,ratingScale:5,text:input.text,...(input.photo!==undefined?{photo:input.photo??deleteField()}:{}),...(input.subRatings!==undefined?{subRatings:input.subRatings}:{}),updatedAt:now});
    const reviews=inputs.reviewSnapshot.docs.map((row:any)=>row.id===reviewId?updated:fromReview(row.id,row.data()));persistListProjection(transaction,userId,inputs.listSnapshot,reviews,{placeId:before.placeId,updatedAt:now});advanceListRevision(transaction,inputs);
   });
   return updated;
@@ -172,8 +191,9 @@ export const firestoreRepository: FoodRepository = {
   const snapshot=await getDoc(doc(db(),'friendships',friendshipId(userId,otherUserId)));
   return snapshot.exists()?fromFriendship(snapshot.id,snapshot.data()):null;
  },
- async listFriendships(userId) {
-  const snapshot=await getDocs(query(friendshipsCollection(),where('userIds','array-contains',userId)));
+ async listFriendships(userId,requireServer=false) {
+  const request=query(friendshipsCollection(),where('userIds','array-contains',userId));
+  const snapshot=await (requireServer?getDocsFromServer(request):getDocs(request));
   return snapshot.docs.map(row=>fromFriendship(row.id,row.data()));
  },
  async sendFriendRequest(userId,recipientId) {

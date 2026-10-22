@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type PropsWithChildren } from 'react';
-import { AccessibilityInfo, Animated, Easing, Platform, Pressable, type PressableProps, type StyleProp, type ViewStyle } from 'react-native';
+import { AccessibilityInfo, Animated, Easing, Platform, Pressable, StyleSheet, type PressableProps, type StyleProp, type ViewStyle } from 'react-native';
+import { colors } from '../theme';
 
 export function useReducedMotion() {
   const [reduced, setReduced] = useState<boolean | null>(null);
@@ -41,23 +42,47 @@ export function Float({ children, style, distance = 8, duration = 3000 }: PropsW
   return <Animated.View style={[style, { transform: [{ translateY: offset }] }]}>{children}</Animated.View>;
 }
 
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 type PressableScaleProps = PropsWithChildren<Pick<PressableProps, 'onPress' | 'onPressIn' | 'onPressOut' | 'disabled' | 'accessibilityRole' | 'accessibilityLabel' | 'accessibilityState' | 'hitSlop' | 'testID'>> & { style?: StyleProp<ViewStyle>; hoverStyle?: StyleProp<ViewStyle>; hoverScale?: number };
-export function PressableScale({ children, style, hoverStyle, hoverScale = 1.01, disabled, onPress, onPressIn, onPressOut, ...accessibilityProps }: PressableScaleProps) {
+export function PressableScale({ children, style, hoverStyle, hoverScale = 1.01, disabled, onPress, onPressIn, onPressOut, accessibilityState, ...accessibilityProps }: PressableScaleProps) {
   const reduced = useReducedMotion();
   const [hovered, setHovered] = useState(false);
+  const [focused, setFocused] = useState(false);
   const scale = useRef(new Animated.Value(1)).current;
+  useEffect(() => {
+    if (disabled || reduced !== false) {
+      scale.stopAnimation();
+      scale.setValue(1);
+      setHovered(false);
+    }
+  }, [disabled, reduced, scale]);
   const animate = (toValue: number) => {
     if (reduced !== false || disabled) return;
     Animated.spring(scale, { toValue, speed: 32, bounciness: 0, useNativeDriver: Platform.OS !== 'web' }).start();
   };
-  return <Animated.View style={{ transform: [{ scale }] }}><Pressable
+  // Animate the press target itself so flex, width, alignment and margins apply
+  // to the actual child of the screen's layout, including equal-width actions.
+  return <AnimatedPressable
     {...accessibilityProps}
+    accessibilityState={Platform.OS === 'web' ? undefined : accessibilityState}
+    {...(Platform.OS === 'web' && accessibilityState ? {
+      'aria-checked': accessibilityState.checked,
+      'aria-pressed': accessibilityProps.accessibilityRole === 'button' ? accessibilityState.selected : undefined,
+      'aria-selected': accessibilityProps.accessibilityRole !== 'button' ? accessibilityState.selected : undefined,
+      'aria-disabled': accessibilityState.disabled,
+      'aria-busy': accessibilityState.busy,
+      'aria-expanded': accessibilityState.expanded,
+    } : {})}
     disabled={disabled}
     onPress={onPress}
     onPressIn={event => { animate(0.985); onPressIn?.(event); }}
     onPressOut={event => { animate(hovered && Platform.OS === 'web' ? hoverScale : 1); onPressOut?.(event); }}
     onHoverIn={() => { if (Platform.OS === 'web' && !disabled) { setHovered(true); animate(hoverScale); } }}
     onHoverOut={() => { if (Platform.OS === 'web') { setHovered(false); animate(1); } }}
-    style={[style, Platform.OS === 'web' && hovered && hoverStyle]}
-  >{children}</Pressable></Animated.View>;
+    onFocus={() => setFocused(true)}
+    onBlur={() => { setFocused(false); animate(1); }}
+    style={[style, Platform.OS === 'web' && hovered && !disabled && hoverStyle,
+      Platform.OS === 'web' && focused && !disabled && { outlineColor: colors.focus, outlineStyle: 'solid', outlineWidth: 2, outlineOffset: 3 } as any,
+      { transform: [...(StyleSheet.flatten(style)?.transform ?? []), { scale }] } as any]}
+  >{children}</AnimatedPressable>;
 }

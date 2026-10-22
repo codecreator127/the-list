@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { deleteApp, initializeApp } from 'firebase/app';
 import { connectAuthEmulator, createUserWithEmailAndPassword, getAuth, signInWithEmailAndPassword, signOut, updateProfile } from 'firebase/auth';
-import { addDoc, collection, connectFirestoreEmulator, deleteDoc, doc, endAt, getDoc, getDocs, initializeFirestore, limit, orderBy, query, runTransaction, serverTimestamp, setDoc, startAt, updateDoc, where } from 'firebase/firestore';
+import { addDoc, collection, connectFirestoreEmulator, deleteDoc, deleteField, doc, endAt, getDoc, getDocs, initializeFirestore, limit, orderBy, query, runTransaction, serverTimestamp, setDoc, startAt, updateDoc, where } from 'firebase/firestore';
 import { connectStorageEmulator, deleteObject, getBytes, getStorage, ref, uploadBytes } from 'firebase/storage';
 
 const projectId = 'demo-the-list';
@@ -185,6 +185,16 @@ await assert.rejects(() => deleteDoc(doc(bob.db, 'reviews', aliceReview1.id)), /
 await assert.rejects(() => updateDoc(doc(bob.db, 'users', aliceUid), { displayName: 'Changed by Bob', updatedAt: serverTimestamp() }), /permission-denied/i, 'users cannot edit another user’s profile');
 await assert.rejects(() => updateDoc(bobReview, { userId: aliceUid, updatedAt: serverTimestamp() }), /permission-denied/i, 'review owners cannot change their UID');
 await updateDoc(bobReview, { text: 'My own review can be edited to add detail.', updatedAt: serverTimestamp() });
+const photoId='12345678-1234-1234-1234-123456789abc';
+const reviewPhoto={path:`cloudinary:the-list/reviews/${bobUid}/${photoId}`,url:`https://res.cloudinary.com/z4ocz8nr/image/upload/the-list/reviews/${bobUid}/${photoId}.webp`};
+await updateDoc(bobReview,{photo:reviewPhoto,updatedAt:serverTimestamp()});
+assert.deepEqual((await getDoc(bobReview)).data().photo,reviewPhoto,'owner can attach one review photo');
+await assert.rejects(()=>updateDoc(bobReview,{photo:{...reviewPhoto,url:'https://untrusted.example/image.svg'}}),/permission-denied/i);
+await assert.rejects(()=>updateDoc(bobReview,{photo:{path:`cloudinary:the-list/reviews/${aliceUid}/${photoId}`,url:`https://res.cloudinary.com/z4ocz8nr/image/upload/the-list/reviews/${aliceUid}/${photoId}.webp`}}),/permission-denied/i);
+await assert.rejects(()=>updateDoc(bobReview,{photo:[reviewPhoto,reviewPhoto]}),/permission-denied/i);
+await assert.rejects(()=>updateDoc(bobReview,{photo:{...reviewPhoto,extra:'not allowed'}}),/permission-denied/i);
+await updateDoc(bobReview,{photo:deleteField(),updatedAt:serverTimestamp()});
+assert.equal((await getDoc(bobReview)).data().photo,undefined,'owner can remove a photo without deleting the review');
 await deleteDoc(bobReview);
 await signOut(bob.auth);
 await assert.rejects(() => getDoc(doc(alice.db, 'places', placeId)), /permission-denied/i, 'unauthenticated application data access is rejected');

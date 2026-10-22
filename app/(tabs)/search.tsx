@@ -147,7 +147,7 @@ export default function SearchScreen() {
     </View> : results.length ? <View style={{ gap: 12 }}>{results.map((place, index) => <Entrance key={place.googlePlaceId} delay={Math.min(index * 25, 150)}>
       <PressableScale accessibilityRole="button" accessibilityLabel={`Open ${place.name}`} disabled={!!openingId} onPress={() => openPlace(place)} hoverStyle={styles.resultHover} style={styles.result}>
         {place.photoUrl ? <Image source={{ uri: place.photoUrl }} style={styles.photo}/> : <View style={styles.placeholder}><Ionicons name="restaurant-outline" size={27} color={colors.green}/></View>}
-        <View style={{ flex: 1 }}>
+        <View style={{ flex: 1, minWidth: 0 }}>
           <Text size={16} weight="700" numberOfLines={1}>{place.name}</Text>
           {place.listReviewCount > 0 ? <View style={styles.scoreRow}><Rating value={place.listAverageRating ?? 0}/><Text size={11} color={colors.muted}>The List · {place.listReviewCount} {place.listReviewCount === 1 ? 'review' : 'reviews'}</Text></View> : <Text size={11} color={colors.muted} style={{ marginTop: 5 }}>No List reviews yet</Text>}
           {place.googleRating !== undefined ? <View style={styles.scoreRow}><Ionicons name="star" size={12} color={colors.star}/><Text size={11} weight="600">{place.googleRating.toFixed(1)}</Text><Text size={10} color={colors.muted}>Google rating</Text></View> : null}
@@ -177,15 +177,15 @@ function FilterRow({ title, children }: { title: string; children: React.ReactNo
 }
 
 const makeStyles = () => ({
-  toolbar: { flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'space-between' as const, marginTop: 9, minHeight: 44 },
+  toolbar: { flexDirection: 'row' as const, flexWrap:'wrap' as const, gap:8, alignItems: 'center' as const, justifyContent: 'space-between' as const, marginTop: 12, minHeight: 44 },
   filterPanel: { padding: 13, backgroundColor: colors.white, borderWidth: 1, borderColor: colors.line, borderRadius: radius.md },
   filterChoices: { flexDirection: 'row' as const, flexWrap: 'wrap' as const, gap: 7 },
   activeFilters: { flexDirection: 'row' as const, flexWrap: 'wrap' as const, alignItems: 'center' as const, gap: 7, marginTop: 10, marginBottom: 4 },
   result: { flexDirection: 'row' as const, alignItems: 'center' as const, padding: 10, gap: 13, borderRadius: radius.md, backgroundColor: colors.white, borderWidth: 1, borderColor: colors.line },
   resultHover: { borderColor: colors.green },
-  photo: { width: 92, height: 92, borderRadius: 12, backgroundColor: colors.soft },
-  placeholder: { width: 92, height: 92, borderRadius: 12, backgroundColor: colors.soft, alignItems: 'center' as const, justifyContent: 'center' as const },
-  scoreRow: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 5, marginTop: 5 },
+  photo: { width: 72, height: 72, borderRadius: radius.sm, backgroundColor: colors.surfaceStrong },
+  placeholder: { width: 72, height: 72, borderRadius: radius.sm, backgroundColor: colors.surfaceStrong, alignItems: 'center' as const, justifyContent: 'center' as const },
+  scoreRow: { flexDirection: 'row' as const, flexWrap:'wrap' as const, alignItems: 'center' as const, gap: 5, marginTop: 5 },
   error: { padding: 20, backgroundColor: colors.white, borderRadius: radius.md, borderWidth: 1, borderColor: colors.line },
-  empty: { padding: 24, backgroundColor: colors.white, borderRadius: 16, alignItems: 'center' as const, marginTop: 10 },
+  empty: { padding: 24, backgroundColor: colors.surface, borderRadius: radius.md, borderWidth:1,borderColor:colors.border, alignItems: 'center' as const, marginTop: 12 },
 });

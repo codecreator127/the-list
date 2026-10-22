@@ -110,6 +110,11 @@ export const ThemeContext = createContext<ThemeContextValue>({ mode: 'system', s
 export const useTheme = () => useContext(ThemeContext);
 export const space = { xs: 4, sm: 8, md: 12, lg: 16, xl: 24, xxl: 32, huge: 44 };
 export const radius = { sm: 3, md: 3, lg: 3, pill: 3 };
+export const controls = {
+	small: { minHeight: 44, paddingHorizontal: 14, paddingVertical: 10, fontSize: 13, iconSize: 16 },
+	medium: { minHeight: 48, paddingHorizontal: 18, paddingVertical: 12, fontSize: 14, iconSize: 18 },
+	large: { minHeight: 54, paddingHorizontal: 22, paddingVertical: 14, fontSize: 15, iconSize: 19 },
+} as const;
 export const typefaces = {
 	sansRegular: 'DMSans_400Regular',
 	sansMedium: 'DMSans_500Medium',

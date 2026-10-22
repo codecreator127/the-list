@@ -1,37 +1,17 @@
-import { useCallback, useState } from 'react';
+import { ListRankedCard } from '../../components/ListRankedCard';
+import { ListFilterControls, emptyListFilters } from '../../components/ListFilters';
+import { useCallback, useDeferredValue, useEffect, useMemo, useState } from 'react';
 import { router, useFocusEffect } from 'expo-router';
-import { ActivityIndicator, Image, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Button, Page, RatingStars, Text } from '../../components/ui';
-import { Entrance, PressableScale } from '../../components/motion';
+import { Button, Page, Text } from '../../components/ui';
+import { PressableScale } from '../../components/motion';
 import { watchAuthState } from '../../services/auth';
 import { foodService } from '../../services/foodService';
 import { isFirebaseRepositoryEnabled } from '../../services/firebase';
 import type { RankedPlace } from '../../features/myList';
+import { filterPersonalList } from '../../features/listFilters';
 import { colors, typefaces, useTheme } from '../../theme';
-
-function RankedPlaceCard({ item }: { item: RankedPlace }) {
-  const styles = makeStyles();
-  const place = item.place;
-  return <Entrance delay={Math.min((item.rank - 1) * 40, 240)}>
-    <PressableScale
-      accessibilityRole="button"
-      accessibilityLabel={`Rank ${item.rank}: ${place.name}, rated ${item.rating.toFixed(2)} out of 5.00`}
-      onPress={() => router.push(`/place/${place.id}`)}
-      hoverStyle={{ borderColor: colors.accentHover }}
-      style={styles.card}
-    >
-      <Text size={11} color={colors.accent} style={styles.rank}>{String(item.rank).padStart(2, '0')}</Text>
-      {place.image ? <Image source={{ uri: place.image }} style={styles.photo}/> : <View style={[styles.photo, styles.photoFallback]}><Ionicons name="restaurant-outline" size={23} color={colors.accent}/></View>}
-      <View style={styles.info}>
-        <Text size={14} weight="600" numberOfLines={1}>{place.name}</Text>
-        <Text size={10} color={colors.textMuted} numberOfLines={1} style={{ marginTop: 3 }}>{place.cuisine ?? place.category}{place.area ? ` · ${place.area}` : ''}</Text>
-        <View style={styles.stars}><RatingStars value={item.rating} size={11}/></View>
-      </View>
-      <Text size={14} weight="600" color={colors.textPrimary} style={styles.score}>{item.rating.toFixed(2)}<Text size={9} color={colors.textMuted}>/5.00</Text></Text>
-    </PressableScale>
-  </Entrance>;
-}
 
 export default function ListScreen() {
   useTheme();
@@ -41,7 +21,12 @@ export default function ListScreen() {
   const [signedIn, setSignedIn] = useState(!isFirebaseRepositoryEnabled);
   const [error, setError] = useState('');
   const [retry, setRetry] = useState(0);
-
+  const [filters,setFilters]=useState(emptyListFilters);
+  const deferredSearch=useDeferredValue(filters.search);
+  const [visibleCount,setVisibleCount]=useState(40);
+  const filtered=useMemo(()=>filterPersonalList(items,{...filters,search:deferredSearch}),[items,filters,deferredSearch]);
+  const resetFilters=()=>setFilters(emptyListFilters());
+  useEffect(()=>{setVisibleCount(40);},[filters,items]);
   useFocusEffect(useCallback(() => {
     let active = true;
     let requestId = 0;
@@ -73,12 +58,17 @@ export default function ListScreen() {
     <View style={styles.ledger}>
         <View style={styles.ledgerHeader}><Text size={10} weight="600" color={colors.textSecondary} style={styles.mono}>MY LIST</Text><View style={styles.profileDot}><Ionicons name="person" size={12} color={colors.onAccent}/></View></View>
         <View style={styles.listIntro}><Text size={10} color={colors.textMuted} style={styles.mono}>YOUR PLACES</Text><View style={styles.count}><Text size={31} color={colors.textPrimary} style={styles.serif}>{items.length}</Text><Text size={10} color={colors.textMuted}> {items.length === 1 ? 'spot' : 'spots'}</Text></View></View>
-
+        {signedIn ? <Button title="Combined List" icon="people-outline" variant="secondary" size="small" onPress={()=>router.push('/combined-list')} style={{alignSelf:'flex-start',marginBottom:14}}/> : null}
+        {signedIn && !loading && !error && items.length ? <>
+          <ListFilterControls items={items} filters={filters} onChange={setFilters} placeholder="Search your restaurants"/>
+          <Text size={11} color={colors.textMuted} style={{paddingBottom:14}}>{filtered.length} of {items.length} places · Original List ranks</Text>
+        </> : null}
         {loading ? <View style={styles.status}><ActivityIndicator color={colors.accent}/><Text size={12} color={colors.textMuted} style={{ marginTop: 12 }}>Building your List…</Text></View>
           : !signedIn ? <View style={styles.empty}><Ionicons name="person-outline" size={24} color={colors.accent}/><Text size={16} weight="600" style={{ marginTop: 12 }}>Sign in to see your List</Text><Text size={13} color={colors.textMuted} style={{ marginTop: 6, textAlign: 'center', lineHeight: 19 }}>Your personal rankings are saved with your account.</Text><Button title="Log in or create an account" icon="person-outline" onPress={() => router.push('/auth')} style={{ marginTop: 17 }}/></View>
           : error ? <View style={styles.empty}><Text size={15} weight="600">Couldn’t load your List</Text><Text size={13} color={colors.textMuted} style={{ marginTop: 7, textAlign: 'center' }}>{error}</Text><Button title="Try again" variant="secondary" size="small" onPress={() => setRetry(value => value + 1)} style={{ marginTop: 12 }}/></View>
-          : items.length ? <View>{items.map(item => <RankedPlaceCard key={item.place.id} item={item}/>)}</View>
-          : <View style={styles.empty}><Ionicons name="list-outline" size={25} color={colors.accent}/><Text size={16} weight="600" style={{ marginTop: 12 }}>Your List is empty</Text><Text size={13} color={colors.textMuted} style={{ marginTop: 6, textAlign: 'center', lineHeight: 19 }}>Review a place and it’ll appear here, ranked by your rating.</Text></View>}
+          : items.length ? filtered.length ? <View>{filtered.slice(0, visibleCount).map(item => <ListRankedCard key={item.place.id} item={item}/>)}{filtered.length > visibleCount ? <Button title={`Show more · ${filtered.length - visibleCount} remaining`} variant="secondary" size="small" onPress={() => setVisibleCount(value => value + 40)} style={{marginVertical: 12}}/> : null}</View>
+            : <View style={styles.empty}><Text size={16} weight="600">No matching restaurants</Text><Text size={13} color={colors.textMuted} style={{marginTop: 7, textAlign: 'center'}}>Try a different name or clear a filter to see more of your List.</Text><Button title="Clear all filters" variant="secondary" size="small" onPress={resetFilters} style={{marginTop: 12}}/></View>
+          : <View style={styles.empty}><Ionicons name="list-outline" size={25} color={colors.accent}/><Text size={16} weight="600" style={{ marginTop: 12 }}>Your List is empty</Text><Text size={13} color={colors.textMuted} style={{ marginTop: 6, textAlign: 'center', lineHeight: 19 }}>Review a place and it’ll appear here, ranked by your rating.</Text><Button title="Explore places" size="small" onPress={() => router.push('/(tabs)/search')} style={{marginTop: 12}}/></View>}
 
         <View style={styles.ledgerFooter}><PressableScale accessibilityRole="button" accessibilityLabel="Add a place to your List" onPress={() => router.push('/(tabs)/search')} style={styles.addPlace}><Ionicons name="add" size={17} color={colors.textPrimary}/><Text size={11} weight="600">Add a place</Text></PressableScale><Text size={9} color={colors.textMuted} style={styles.mono}>{loading ? 'LOADING' : 'RANKED BY YOUR RATING'}</Text></View>
     </View>
@@ -95,13 +85,6 @@ const makeStyles = () => StyleSheet.create({
   serif: { fontFamily: typefaces.serif },
   status: { alignItems: 'center', paddingVertical: 46, borderTopWidth: 1, borderTopColor: colors.border },
   empty: { alignItems: 'center', paddingHorizontal: 15, paddingVertical: 38, borderTopWidth: 1, borderTopColor: colors.border },
-  card: { minHeight: 82, flexDirection: 'row', alignItems: 'center', gap: 11, borderTopWidth: 1, borderTopColor: colors.border, paddingVertical: 11 },
-  rank: { width: 20, fontFamily: typefaces.mono, letterSpacing: 1 },
-  photo: { width: 58, height: 58, borderRadius: 2, backgroundColor: colors.surfaceStrong },
-  photoFallback: { alignItems: 'center', justifyContent: 'center' },
-  info: { flex: 1, minWidth: 0 },
-  stars: { flexDirection: 'row', gap: 1, marginTop: 5 },
-  score: { minWidth: 27, textAlign: 'right', fontFamily: typefaces.serif },
   ledgerFooter: { minHeight: 39, flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 13, marginTop: 2 },
   addPlace: { flexDirection: 'row', alignItems: 'center', gap: 5 },
 });

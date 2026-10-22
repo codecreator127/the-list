@@ -63,7 +63,7 @@ service cloud.firestore {
 
     function validReview(reviewId) {
       return reviewId == request.auth.uid + '_' + request.resource.data.placeId
-        && request.resource.data.keys().hasOnly(['userId', 'placeId', 'rating', 'ratingScale', 'subRatings', 'text', 'createdAt', 'updatedAt'])
+        && request.resource.data.keys().hasOnly(['userId', 'placeId', 'rating', 'ratingScale', 'subRatings', 'text', 'photo', 'createdAt', 'updatedAt'])
         && request.resource.data.userId == request.auth.uid
         && request.resource.data.placeId is string
         && exists(/databases/$(database)/documents/places/$(request.resource.data.placeId))
@@ -72,10 +72,21 @@ service cloud.firestore {
         && request.resource.data.rating <= 5
         && request.resource.data.ratingScale == 5
         && validSubRatings(request.resource.data)
+        && validReviewPhoto(request.resource.data)
         && request.resource.data.text is string
         && request.resource.data.text.size() <= 500
         && request.resource.data.createdAt is timestamp
         && request.resource.data.updatedAt is timestamp;
+    }
+
+    function validReviewPhoto(data) {
+      return !('photo' in data) || (data.photo is map
+        && data.photo.keys().hasOnly(['path', 'url'])
+        && data.photo.keys().hasAll(['path', 'url'])
+        && data.photo.path is string && data.photo.url is string
+        && data.photo.path.matches('^cloudinary:the-list/reviews/[A-Za-z0-9_-]+/[a-f0-9-]{36}$')
+        && data.photo.path.split('/')[2] == request.auth.uid
+        && data.photo.url == 'https://res.cloudinary.com/z4ocz8nr/image/upload/the-list/reviews/' + request.auth.uid + '/' + data.photo.path.split('/')[3] + '.webp');
     }
 
     match /users/{userId} {

@@ -1,5 +1,7 @@
 # The List
 
+Combined Lists: open **List → Combined List** to rank restaurants with selected accepted friends. Personal and Combined Lists support multi-select cuisine filters without changing saved ranks. See [COMBINED-LISTS.md](COMBINED-LISTS.md) for calculation, access and verification details.
+
 A mobile-first food discovery and review prototype for Sydney, built with Expo, React Native, TypeScript and Expo Router.
 
 For manual Vercel setup, required environment variables, the Firebase/Google security audit, and production verification results, see [DEPLOYMENT.md](DEPLOYMENT.md).
@@ -69,3 +71,5 @@ Google Places content is shown with Google Maps attribution and photo author att
 - `types/` — domain types
 
 Ratings shown as **The List** are calculated from our Firestore reviews and displayed to two decimal places on a 5-point scale. Personal rank uses the overall rating with optional category ratings contributing a combined 10%. Google ratings are displayed separately when available. Reviews, persisted personal List entries, and app-owned user data persist in Firestore when Firebase is configured; mock mode remains in-memory and resets on reload.
+
+For deterministic Firebase V1 test data, protected-account safeguards, the four `seed:*` commands and the acceptance checklist, see [SEEDING.md](SEEDING.md). Start with emulators; live writes require project verification and explicit owner approval.

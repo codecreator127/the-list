@@ -6,7 +6,7 @@ import { BackButton, Button, Page, Text } from '../components/ui';
 import { firebaseAuth, sendPasswordReset, signOutUser } from '../services/auth';
 import { foodService } from '../services/foodService';
 import { isFirebaseRepositoryEnabled } from '../services/firebase';
-import { colors, radius } from '../theme';
+import { colors, radius, useTheme } from '../theme';
 
 function providerLabel(providerIds: string[]) {
   const providers = new Map([
@@ -21,6 +21,7 @@ function providerLabel(providerIds: string[]) {
 }
 
 export default function SettingsScreen() {
+  useTheme();
   const [name, setName] = useState('');
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');

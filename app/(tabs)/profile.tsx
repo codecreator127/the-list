@@ -1,3 +1,4 @@
+import { ReviewPhoto } from '../../components/ReviewPhoto';
 import { useCallback, useState } from 'react';
 import { router, useFocusEffect } from 'expo-router';
 import { Image, View } from 'react-native';
@@ -46,7 +47,7 @@ export default function ProfileScreen() {
     <Text size={14} color={colors.muted} style={{ marginTop: 6, marginBottom: 22 }}>Your account and preferences.</Text>
     {user && <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14, padding: 18, backgroundColor: colors.white, borderRadius: radius.md, borderWidth: 1, borderColor: colors.line }}>
       <Avatar user={user} size={60} />
-      <View style={{ flex: 1 }}>
+      <View style={{ flex: 1, minWidth:0 }}>
         <Text size={19} weight="700">{user.name}</Text>
         <Text size={13} color={colors.muted} style={{ marginTop: 4 }}>@{user.username ?? user.handle}</Text>
         <Text size={12} color={colors.muted} style={{ marginTop: 3 }}>{myReviews.length} {myReviews.length === 1 ? 'review' : 'reviews'} shared</Text>
@@ -73,16 +74,16 @@ export default function ProfileScreen() {
           onPress={() => router.push(`/place/${review.place.id}`)}
           style={{ width: '100%', flexDirection: 'row', alignItems: 'center', gap: 13 }}
         >
-          <Image source={{ uri: review.place.image }} style={{ width: 82, height: 82, borderRadius: 8, backgroundColor: colors.soft }} />
+          <Image source={{ uri: review.place.image }} style={{ width: 58, height: 58, borderRadius: radius.sm, backgroundColor: colors.surfaceStrong }} />
           <View style={{ flex: 1, minWidth: 0, justifyContent: 'center' }}>
             <Text size={16} weight="700">{review.place.name}</Text>
             <View style={{ marginTop: 5 }}><Rating value={review.rating} /></View>
             {review.place.googlePlaceId && !review.place.googlePlaceId.startsWith('mock:') ? <Text size={9} color={colors.muted} numberOfLines={1} style={{ marginTop: 4 }}>{review.place.photoAttributions?.[0] ? `Photo: ${review.place.photoAttributions[0].displayName} · ` : ''}Google Maps</Text> : null}
-            <Text numberOfLines={2} size={12} color={colors.muted} style={{ marginTop: 6, lineHeight: 17 }}>{review.text}</Text>
+            <Text numberOfLines={2} size={12} color={colors.muted} style={{ marginTop: 6, lineHeight: 17 }}>{review.text}</Text>{review.photo ? <ReviewPhoto uri={review.photo.url} /> : null}
           </View>
         </PressableScale>
       </View>
-      <View style={{ width: 82, flexShrink: 0, alignItems: 'flex-end', justifyContent: 'center', paddingRight: 2 }}>
+      <View style={{ flexShrink: 0, alignItems: 'flex-end', justifyContent: 'center' }}>
         <Button title="Edit" variant="ghost" size="small" accessibilityLabel={`Edit review for ${review.place.name}`} onPress={() => router.push(`/review/${review.place.id}?mode=edit`)} />
       </View>
     </View>) : <View style={{ padding: 24, backgroundColor: colors.white, borderRadius: radius.md, alignItems: 'center' }}>

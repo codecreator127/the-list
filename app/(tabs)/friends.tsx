@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { router, useFocusEffect } from 'expo-router';
-import { ActivityIndicator, View } from 'react-native';
+import { ActivityIndicator, View, useWindowDimensions } from 'react-native';
 import { Avatar, Button, Input, Page, SectionTitle, Text } from '../../components/ui';
 import { PressableScale } from '../../components/motion';
 import { foodService } from '../../services/foodService';
@@ -8,7 +8,7 @@ import { isFirebaseRepositoryEnabled } from '../../services/firebase';
 import { watchAuthState } from '../../services/auth';
 import type { Friendship } from '../../services/repositories';
 import type { User } from '../../types/models';
-import { colors, radius } from '../../theme';
+import { colors, radius, useTheme } from '../../theme';
 
 function relationshipId(userA: string, userB: string) {
   return [userA, userB].sort().join('_');
@@ -17,6 +17,8 @@ function relationshipId(userA: string, userB: string) {
 type FriendRow = { friendship: Friendship; user: User };
 
 export default function FriendsScreen() {
+  useTheme();
+  const compact=useWindowDimensions().width<560;
   const [userId, setUserId] = useState('');
   const [signedIn, setSignedIn] = useState(!isFirebaseRepositoryEnabled);
   const [friendships, setFriendships] = useState<Friendship[]>([]);
@@ -149,8 +151,8 @@ export default function FriendsScreen() {
   }
 
   function profileCard(user: User, friendship: Friendship, trailing?: ReactNode) {
-    return <View key={friendship.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 13, marginTop: 9, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md }}>
-      <View style={{ flex: 1, minWidth: 0 }}>
+    return <View key={friendship.id} style={{ flexDirection: compact?'column':'row', alignItems: compact?'stretch':'center', gap: 12, padding: 16, marginTop: 12, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md }}>
+      <View style={{ flex: compact?undefined:1, minWidth: 0 }}>
         <PressableScale accessibilityRole="button" accessibilityLabel={`View ${user.name}'s profile`} onPress={() => router.push(`/user/${user.id}`)} style={{ width: '100%', flexDirection: 'row', alignItems: 'center', gap: 12 }}>
           <Avatar user={user} size={44}/>
           <View style={{ flex: 1, minWidth: 0 }}>
@@ -159,7 +161,7 @@ export default function FriendsScreen() {
           </View>
         </PressableScale>
       </View>
-      {trailing ? <View style={{ width: 170, flexShrink: 0, alignItems: 'flex-end', justifyContent: 'center' }}>{trailing}</View> : null}
+      {trailing ? <View style={{ maxWidth:'100%', flexShrink: 0, alignItems: compact?'flex-start':'flex-end', justifyContent: 'center' }}>{trailing}</View> : null}
     </View>;
   }
 
@@ -174,7 +176,7 @@ export default function FriendsScreen() {
       <Text size={12} color={colors.textMuted} style={{ marginBottom: 8 }}>Results update as you type; usernames are not case-sensitive.</Text>
       <View style={{ flexDirection: 'row', gap: 9, alignItems: 'center' }}>
         <Input value={search} onChangeText={setSearch} onSubmitEditing={findUsers} returnKeyType="search" autoCapitalize="none" autoCorrect={false} placeholder="Search by username" accessibilityLabel="Search by username" style={{ flex: 1 }}/>
-        <Button title="Search" size="small" loading={searching} disabled={searching} onPress={findUsers}/>
+        <Button title="Search" loading={searching} disabled={searching} onPress={findUsers}/>
       </View>
       {searchError ? <Text size={12} color={colors.error} style={{ marginTop: 9 }}>{searchError}</Text> : null}
       {searching ? <View style={{ padding: 18, alignItems: 'center' }}><ActivityIndicator color={colors.accent}/></View>

@@ -3,7 +3,7 @@ import { Image, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-
 import { Ionicons } from '@expo/vector-icons';
 import { Float, PressableScale } from '../components/motion';
 import { Text, Button, Badge } from '../components/ui';
-import { colors, radius, typefaces } from '../theme';
+import { colors, radius, typefaces, useTheme } from '../theme';
 import { isFirebaseRepositoryEnabled } from '../services/firebase';
 
 const restaurants = [
@@ -21,6 +21,7 @@ const steps = [
 const serif = typefaces.serif;
 
 export default function Welcome() {
+	useTheme();
 	const { width } = useWindowDimensions();
 	const compact = width < 760;
 	const styles = makeStyles();
@@ -30,12 +31,12 @@ export default function Welcome() {
 	const openList = () => router.push('/(tabs)/list');
 
 	return <ScrollView style={styles.root} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-		<View style={styles.header}>
+		<View style={[styles.header,compact&&styles.headerCompact]}>
 			<PressableScale accessibilityRole="button" accessibilityLabel="The List home" onPress={() => router.replace('/')} style={styles.wordmark}>
 				<Ionicons name="restaurant-outline" size={21} color={colors.accent}/><Text size={18} weight="700">The List</Text>
 			</PressableScale>
-			{!compact ? <View style={styles.nav}><PressableScale onPress={openSearch} style={styles.navLink}><Text size={14} color={colors.textPrimary}>Explore</Text><View style={styles.navDot}/></PressableScale><PressableScale onPress={openList} style={styles.navLink}><Text size={14} color={colors.textMuted}>My List</Text></PressableScale></View> : null}
-			<View style={styles.headerActions}>{!compact && isFirebaseRepositoryEnabled ? <PressableScale onPress={signIn} style={styles.signIn}><Text size={14} color={colors.textMuted}>Sign in</Text></PressableScale> : null}<Button title={compact ? 'Get started' : 'Get started'} icon="arrow-up" size="small" onPress={start} style={styles.headerButton}/></View>
+			{!compact ? <View style={styles.nav}><Button title="Explore" variant="ghost" size="small" onPress={openSearch}/><Button title="My List" variant="ghost" size="small" onPress={openList}/></View> : null}
+			<View style={styles.headerActions}>{!compact && isFirebaseRepositoryEnabled ? <Button title="Sign in" variant="ghost" size="small" onPress={signIn}/> : null}<Button title={compact ? 'Get started' : 'Get started'} icon="arrow-up" size="small" onPress={start} style={styles.headerButton}/></View>
 		</View>
 
 		<View style={[styles.hero, compact && styles.heroCompact]}>
@@ -43,7 +44,7 @@ export default function Welcome() {
 				<View style={styles.eyebrow}><View style={styles.eyebrowLine}/><Text size={10} weight="600" color={colors.textMuted}>A BETTER WAY TO REMEMBER WHERE YOU EAT</Text></View>
 				<Text size={compact ? 54 : 76} weight="500" style={[styles.heroTitle, { lineHeight: compact ? 58 : 81 }]}>Every place{ '\n' }you’ve eaten.{ '\n' }<Text size={compact ? 54 : 76} weight="500" color={colors.accent} style={styles.serifItalic}>Ranked.</Text></Text>
 				<Text size={16} color={colors.textMuted} style={styles.heroDescription}>Rate the places you try and build your definitive List of the best food you’ve found.</Text>
-				<View style={[styles.heroActions, compact && styles.heroActionsCompact]}><Button title="Start your List" icon="arrow-up" size="large" onPress={start} style={styles.heroButton}/><PressableScale onPress={openSearch} style={styles.textLink}><Text size={14} weight="600">Explore the app</Text><Ionicons name="arrow-down" size={16} color={colors.textPrimary}/></PressableScale></View>
+				<View style={[styles.heroActions, compact && styles.heroActionsCompact]}><Button title="Start your List" icon="arrow-up" size="large" onPress={start} style={styles.heroButton}/><Button title="Explore the app" variant="ghost" icon="arrow-down" onPress={openSearch}/></View>
 				<View style={styles.heroNote}><View style={styles.avatarStack}><View style={[styles.avatar, styles.avatarOne]}/><View style={[styles.avatar, styles.avatarTwo]}/><View style={[styles.avatar, styles.avatarThree]}/></View><Text size={11} color={colors.textMuted} style={styles.noteCopy}>Made for people who care{ '\n' }where they eat.</Text></View>
 			</View>
 
@@ -72,7 +73,7 @@ export default function Welcome() {
 		</View>
 
 		<View style={[styles.snapshot, compact && styles.snapshotCompact]}>
-			<View style={styles.snapshotCopy}><View style={styles.eyebrow}><View style={styles.eyebrowLine}/><Text size={10} weight="600" color={colors.textMuted}>A LIST WORTH KEEPING</Text></View><Text size={compact ? 39 : 55} weight="500" style={[styles.snapshotTitle, { lineHeight: compact ? 43 : 58 }]}>Somewhere between a diary and a <Text size={compact ? 39 : 55} color={colors.accent} style={styles.serifItalic}>hot take.</Text></Text><Text size={14} color={colors.textMuted} style={styles.snapshotBody}>Because the best recommendations are the ones you make for yourself. The List keeps them all in one place, in an order that actually means something.</Text><PressableScale onPress={start} style={styles.textLink}><Text size={14} weight="600">Make your first entry</Text><Ionicons name="arrow-up" size={16} color={colors.textPrimary}/></PressableScale></View>
+			<View style={styles.snapshotCopy}><View style={styles.eyebrow}><View style={styles.eyebrowLine}/><Text size={10} weight="600" color={colors.textMuted}>A LIST WORTH KEEPING</Text></View><Text size={compact ? 39 : 55} weight="500" style={[styles.snapshotTitle, { lineHeight: compact ? 43 : 58 }]}>Somewhere between a diary and a <Text size={compact ? 39 : 55} color={colors.accent} style={styles.serifItalic}>hot take.</Text></Text><Text size={14} color={colors.textMuted} style={styles.snapshotBody}>Because the best recommendations are the ones you make for yourself. The List keeps them all in one place, in an order that actually means something.</Text><Button title="Make your first entry" variant="ghost" icon="arrow-up" onPress={start} style={{alignSelf:'flex-start'}}/></View>
 			<View style={styles.snapshotImageWrap}><Image source={{ uri: 'https://images.unsplash.com/photo-1559339352-11d035aa65de?auto=format&fit=crop&w=1200&q=85' }} style={[styles.snapshotImage, compact && styles.snapshotImageCompact]}/><View style={styles.imageCaption}><Text size={10} color={colors.textPrimary} style={styles.mono}>THE PLACES{ '\n' }THAT STAY WITH YOU</Text></View></View>
 		</View>
 
@@ -83,7 +84,7 @@ export default function Welcome() {
 
 		<View style={styles.finalCta}><Text size={10} weight="600" color={colors.onAccent} style={styles.mono}>START WITH ONE</Text><Text size={compact ? 48 : 76} weight="500" color={colors.onAccent} style={[styles.finalTitle, { lineHeight: compact ? 53 : 82 }]}>What’s your{ '\n' }<Text size={compact ? 48 : 76} color={colors.textPrimary} style={styles.serifItalic}>number one?</Text></Text><Button title="Start your List" icon="arrow-up" variant="secondary" size="large" onPress={start} style={styles.finalButton}/></View>
 
-		<View style={[styles.footer, compact && styles.footerCompact]}><View><PressableScale onPress={() => router.replace('/')} style={styles.wordmark}><Ionicons name="restaurant-outline" size={19} color={colors.accent}/><Text size={16} weight="700">The List</Text></PressableScale><Text size={12} color={colors.textMuted} style={{ marginTop: 10 }}>Your places. Ranked.</Text></View><View style={styles.footerLinks}><PressableScale onPress={openSearch}><Text size={12}>Explore</Text></PressableScale><PressableScale onPress={openList}><Text size={12}>My List</Text></PressableScale><PressableScale onPress={signIn}><Text size={12}>Sign in</Text></PressableScale></View><Text size={11} color={colors.textMuted} style={styles.copyright}>© 2026 The List</Text></View>
+		<View style={[styles.footer, compact && styles.footerCompact]}><View><PressableScale onPress={() => router.replace('/')} style={styles.wordmark}><Ionicons name="restaurant-outline" size={19} color={colors.accent}/><Text size={16} weight="700">The List</Text></PressableScale><Text size={12} color={colors.textMuted} style={{ marginTop: 10 }}>Your places. Ranked.</Text></View><View style={styles.footerLinks}><Button title="Explore" variant="ghost" size="small" onPress={openSearch}/><Button title="My List" variant="ghost" size="small" onPress={openList}/><Button title="Sign in" variant="ghost" size="small" onPress={signIn}/></View><Text size={11} color={colors.textMuted} style={styles.copyright}>© 2026 The List</Text></View>
 	</ScrollView>;
 }
 
@@ -91,13 +92,14 @@ const makeStyles = () => StyleSheet.create({
 	root: { flex: 1, backgroundColor: colors.background },
 	scrollContent: { alignItems: 'center' },
 	header: { width: '100%', maxWidth: 1320, minHeight: 82, paddingHorizontal: 44, borderBottomWidth: 1, borderBottomColor: colors.border, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+	headerCompact: { paddingHorizontal:22 },
 	wordmark: { flexDirection: 'row', alignItems: 'center', gap: 8 },
 	nav: { flexDirection: 'row', alignItems: 'center', gap: 32 },
 	navLink: { minHeight: 42, alignItems: 'center', justifyContent: 'center', position: 'relative' },
 	navDot: { position: 'absolute', bottom: 1, width: 4, height: 4, borderRadius: 2, backgroundColor: colors.accent },
 	headerActions: { flexDirection: 'row', alignItems: 'center', gap: 22 },
 	signIn: { paddingVertical: 10 },
-	headerButton: { minHeight: 40, height: 40, borderRadius: 3, backgroundColor: colors.textPrimary, borderColor: colors.textPrimary },
+	headerButton: {},
 	hero: { width: '100%', maxWidth: 1320, minHeight: 650, paddingHorizontal: 64, paddingVertical: 76, flexDirection: 'row', alignItems: 'center', gap: 64 },
 	heroCompact: { minHeight: 0, paddingHorizontal: 22, paddingTop: 58, paddingBottom: 55, flexDirection: 'column', alignItems: 'stretch', gap: 24 },
 	heroCopy: { flex: 1, paddingBottom: 18 },
@@ -110,7 +112,7 @@ const makeStyles = () => StyleSheet.create({
 	heroDescription: { maxWidth: 360, lineHeight: 25 },
 	heroActions: { flexDirection: 'row', alignItems: 'center', gap: 26, marginTop: 32 },
 	heroActionsCompact: { flexWrap: 'wrap', gap: 18 },
-	heroButton: { borderRadius: 3, backgroundColor: colors.textPrimary, borderColor: colors.textPrimary },
+	heroButton: {},
 	textLink: { minHeight: 36, flexDirection: 'row', alignItems: 'center', gap: 9, borderBottomWidth: 1, borderBottomColor: colors.textMuted, paddingBottom: 4 },
 	heroNote: { flexDirection: 'row', alignItems: 'center', gap: 13, marginTop: 54 },
 	avatarStack: { flexDirection: 'row', alignItems: 'center' },
@@ -172,7 +174,7 @@ const makeStyles = () => StyleSheet.create({
 	socialCaption: { position: 'absolute', right: 22, bottom: 17, textAlign: 'right', lineHeight: 18 },
 	finalCta: { width: '100%', alignItems: 'center', backgroundColor: colors.accent, paddingHorizontal: 20, paddingVertical: 96 },
 	finalTitle: { marginTop: 24, marginBottom: 34, textAlign: 'center', fontFamily: serif, letterSpacing: -0.8 },
-	finalButton: { minWidth: 170, borderRadius: 3, backgroundColor: colors.background, borderColor: colors.background },
+	finalButton: { minWidth: 170 },
 	footer: { width: '100%', maxWidth: 1320, minHeight: 145, paddingHorizontal: 64, paddingVertical: 40, flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between' },
 	footerCompact: { minHeight: 0, paddingHorizontal: 22, paddingVertical: 36, flexWrap: 'wrap', alignItems: 'center', gap: 26 },
 	footerLinks: { flexDirection: 'row', flexWrap: 'wrap', gap: 24 },

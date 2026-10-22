@@ -1,76 +1,82 @@
-import { useEffect, useRef, useState } from 'react';
-import { router } from 'expo-router';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { Avatar, FilterChip, Page, PlaceCard, ReviewCard, SectionTitle, Text } from '../../components/ui';
+import { ReviewPhoto } from '../../components/ReviewPhoto';
+import { useCallback, useState } from 'react';
+import { router, useFocusEffect } from 'expo-router';
+import { ActivityIndicator, Image, ScrollView, View } from 'react-native';
+import { Avatar, Button, Card, Page, Rating, SectionTitle, Text } from '../../components/ui';
+import { PressableScale } from '../../components/motion';
 import { foodService } from '../../services/foodService';
 import { watchAuthState } from '../../services/auth';
 import { isFirebaseRepositoryEnabled } from '../../services/firebase';
-import type { Place, Review, User } from '../../types/models';
-import { colors, radius, space, useTheme } from '../../theme';
+import type { HomeData, HomeReview } from '../../services/personalizedData';
+import type { Place } from '../../types/models';
+import { colors, typefaces, useTheme } from '../../theme';
 
-function PlaceCarousel({ places, onPlacePress }: { places: Place[]; onPlacePress: (id: string) => void }) {
-  const s = makeStyles();
-  const listRef = useRef<ScrollView>(null);
-  const [viewportWidth, setViewportWidth] = useState(0);
-  const [activeIndex, setActiveIndex] = useState(0);
-  const cardWidth = viewportWidth ? Math.max(1, Math.min(254, viewportWidth - 52)) : 254;
-  const interval = cardWidth + 14;
-  const trailingSpace = viewportWidth ? Math.max(24, viewportWidth - cardWidth) : 24;
-
-  useEffect(() => { setActiveIndex(0); listRef.current?.scrollTo({ x: 0, animated: false }); }, [places.length]);
-
-  if (!places.length) return <Text size={13} color={colors.muted} style={{ marginTop: 15 }}>Places you review will appear here.</Text>;
-
-  return <View onLayout={event => setViewportWidth(event.nativeEvent.layout.width)} style={{ marginTop: 15 }}>
-    <ScrollView
-      ref={listRef}
-      horizontal
-      showsHorizontalScrollIndicator={false}
-      snapToInterval={interval}
-      snapToAlignment="start"
-      decelerationRate="fast"
-      disableIntervalMomentum
-      onMomentumScrollEnd={event => setActiveIndex(Math.min(places.length - 1, Math.round(event.nativeEvent.contentOffset.x / interval)))}
-      contentContainerStyle={{ paddingRight: trailingSpace }}
-    >
-      {places.map(item => <PlaceCard key={item.id} place={item} horizontal cardWidth={cardWidth} onPress={() => onPlacePress(item.id)}/>) }
-    </ScrollView>
-    {places.length > 1 ? <View style={s.carouselPagination} accessibilityLabel="Place carousel pagination">
-      {places.map((item, index) => <Pressable key={item.id} accessibilityRole="button" accessibilityLabel={`Show place ${index + 1} of ${places.length}`} accessibilityState={{ selected: activeIndex === index }} onPress={() => { setActiveIndex(index); listRef.current?.scrollTo({ x: index * interval, animated: true }); }} style={[s.carouselDot, activeIndex === index && s.carouselDotActive]}/>) }
-    </View> : null}
-  </View>;
+function Attribution({place}: {place: Place}) {
+  return place.googlePlaceId && !place.googlePlaceId.startsWith('mock:') ? <Text size={9} color={colors.textMuted} numberOfLines={1} style={{marginTop: 6}}>{place.photoAttributions?.[0] ? `Photo: ${place.photoAttributions[0].displayName} · ` : ''}Google Maps</Text> : null;
 }
-
-export default function Home() {useTheme(); const s = makeStyles();
-  const [reviews, setReviews] = useState<(Review & { user: User })[]>([]);
-  const [places, setPlaces] = useState<Place[]>([]);
-  const [user, setUser] = useState<User>();
-  const [selectedArea, setSelectedArea] = useState('All');
-  const [loadError, setLoadError] = useState('');
+function ActivityCard({review, friend = false}: {review: HomeReview; friend?: boolean}) {
+  return <Card style={{marginTop: 12}}>
+    {friend ? <PressableScale accessibilityRole="button" accessibilityLabel={`View ${review.user.name}'s profile`} onPress={() => router.push(`/user/${review.userId}`)} style={{flexDirection: 'row', gap: 9, alignItems: 'center', marginBottom: 12}}>
+      <Avatar user={review.user} size={30}/><View style={{flex: 1}}><Text size={12} weight="600">{review.user.name}</Text><Text size={10} color={colors.textMuted}>{review.date}</Text></View>
+    </PressableScale> : null}
+    <PressableScale accessibilityRole="button" accessibilityLabel={`Open ${review.place.name}, rated ${review.rating.toFixed(2)} out of 5`} onPress={() => router.push(`/place/${review.placeId}`)} style={{gap: 8}}>
+      <Text size={16} weight="600">{review.place.name}</Text>
+      <View style={{flexDirection: 'row', gap: 8, alignItems: 'center', flexWrap: 'wrap'}}><Rating value={review.rating} size={12}/><Text size={11} color={colors.textMuted}>{review.place.area}{!friend ? ` · ${review.date}` : ''}</Text></View>
+      {review.text ? <Text size={13} color={colors.textSecondary} numberOfLines={2}>{review.text}</Text> : null}
+      <Attribution place={review.place}/>{review.photo ? <ReviewPhoto uri={review.photo.url} /> : null}
+    </PressableScale>
+  </Card>;
+}
+function EmptySection({message, action, onPress}: {message: string; action?: string; onPress?: () => void}) {
+  return <View style={{paddingVertical: 17}}><Text size={13} color={colors.textMuted} style={{lineHeight: 20}}>{message}</Text>{action && onPress ? <Button title={action} size="small" variant="ghost" onPress={onPress} style={{alignSelf: 'flex-start', marginTop: 7}}/> : null}</View>;
+}
+export default function Home() {
+  useTheme();
+  const [data, setData] = useState<HomeData>();
   const [loading, setLoading] = useState(true);
-
-  useEffect(() => watchAuthState(authUser => {
-    const userId = authUser?.uid ?? (isFirebaseRepositoryEnabled ? '' : 'u1');
-    if (!userId) { setUser(undefined); return; }
-    foodService.getUser(userId).then(setUser).catch(() => setUser(undefined));
-  }), []);
-
-  useEffect(() => {
+  const [error, setError] = useState('');
+  const [retry, setRetry] = useState(0);
+  useFocusEffect(useCallback(() => {
     let active = true;
-    Promise.all([foodService.getReviews(), foodService.getPlaces()]).then(([reviewRows, placeRows]) => {
-      if (active) { setReviews(reviewRows); setPlaces(placeRows); setLoadError(''); setLoading(false); }
-    }).catch(() => { if (active) { setLoadError('Could not load your List. Check Firebase configuration or switch to mock mode.'); setLoading(false); } });
-    return () => { active = false; };
-  }, []);
-
-  const place = (id: string) => router.push(`/place/${id}`);
+    let request = 0;
+    const unsubscribe = watchAuthState(user => {
+      const requestId = ++request;
+      setData(undefined); setError('');
+      if (isFirebaseRepositoryEnabled && !user) { setLoading(false); return; }
+      setLoading(true);
+      foodService.getHomeData().then(result => {
+        if (active && request === requestId) { setData(result); setLoading(false); }
+      }).catch(cause => {
+        if (active && request === requestId) { setError(cause instanceof Error ? cause.message : 'Could not load your activity.'); setLoading(false); }
+      });
+    });
+    return () => { active = false; request++; unsubscribe(); };
+  }, [retry]));
   const hour = new Date().getHours();
   const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
-  const firstName = user?.name.split(/\s+/)[0] ?? 'there';
-  const today = new Intl.DateTimeFormat('en-AU', { weekday: 'long', month: 'long', day: 'numeric' }).format(new Date()).toUpperCase();
-
-  return <Page><View style={s.top}><View><Text size={13} weight="600" color={colors.muted}>{today}</Text><Text size={27} weight="700" style={{ marginTop: 5 }}>{greeting}, {firstName}</Text></View>{user ? <Avatar user={user}/> : null}</View>{loadError ? <Text size={12} color={colors.danger} style={{ marginTop: 12 }}>{loadError}</Text> : null}<View style={s.note}><View style={s.noteIcon}><Ionicons name="heart" size={17} color={colors.green}/></View><Text size={13} color={colors.greenDark} style={s.noteText}>Your places, notes, and local standouts.</Text></View><View style={{ marginTop: 28 }}><SectionTitle title="Places on the List" action="See all" onAction={() => router.push('/(tabs)/list')}/>{loading?<ActivityIndicator color={colors.green} style={{marginTop:24}}/>:<PlaceCarousel places={places.slice(0, 4)} onPlacePress={place}/>}</View><View style={{ marginTop: 31 }}><SectionTitle title="A little local love" action="Explore" onAction={() => router.push('/(tabs)/search')}/><Text size={13} color={colors.muted} style={{ marginTop: 5 }}>Places your neighbourhood keeps coming back to.</Text><ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 15 }} contentContainerStyle={{ gap: 9 }}>{['All', 'Surry Hills', 'Newtown', 'Bondi', 'Paddington'].map(area => <FilterChip key={area} label={area} selected={selectedArea === area} onPress={() => setSelectedArea(area)} accessibilityLabel={`Show ${area} places`}/>)}</ScrollView><View style={{ gap: 14, marginTop: 14 }}>{places.filter(item => selectedArea === 'All' || item.area === selectedArea).slice(0, 3).map(item => <PlaceCard key={item.id} place={item} onPress={() => place(item.id)}/>)}</View></View><View style={{ marginTop: 32 }}><SectionTitle title="Recent Reviews" action="All reviews" onAction={() => router.push('/(tabs)/search')}/>{reviews.length?reviews.slice(0, 3).map(review => <View key={review.id} style={{ marginTop: 2 }}><ReviewCard review={review}/></View>):!loading?<Text size={13} color={colors.muted} style={{marginTop:10}}>No recent reviews yet. Explore a place and share a note with your people.</Text>:null}</View></Page>;
+  const explore = () => router.push('/(tabs)/search');
+  const friends = () => router.push('/(tabs)/friends');
+  return <Page>
+    <View style={{flexDirection: 'row', alignItems: 'center', gap: 12}}><View style={{flex: 1}}><Text size={10} color={colors.accent} style={{fontFamily: typefaces.mono, letterSpacing: 2}}>FOR YOU</Text><Text size={29} style={{marginTop: 6}}>{greeting}{data ? `, ${data.user.name.split(/\s+/)[0]}` : ''}</Text><Text size={13} color={colors.textMuted} style={{marginTop: 7}}>Your latest meals. A few tips from your people.</Text></View>{data ? <Avatar user={data.user} size={42}/> : null}</View>
+    {loading ? <View style={{padding: 40, alignItems: 'center'}}><ActivityIndicator color={colors.accent}/><Text size={13} color={colors.textMuted} style={{marginTop: 12}}>Gathering your places…</Text></View>
+      : error ? <Card style={{marginTop: 24}}><Text size={16} weight="600">Couldn’t load For You</Text><Text size={13} color={colors.error} style={{marginTop: 8}}>{error}</Text><Button title="Try again" variant="secondary" onPress={() => setRetry(value => value + 1)} style={{marginTop: 14}}/></Card>
+      : !data ? <EmptySection message="Sign in to see your recent meals and friends’ favourites." action="Log in" onPress={() => router.push('/auth')}/>
+      : <>
+        {data.unavailablePlaces ? <View style={{marginTop: 18}}><Text size={12} color={colors.textMuted}>Some restaurant details are unavailable right now.</Text><Button title="Retry details" size="small" variant="ghost" onPress={() => setRetry(value => value + 1)} style={{alignSelf: 'flex-start'}}/></View> : null}
+        <View style={{marginTop: 28}}><SectionTitle title="Recent Activity" action="Your List" onAction={() => router.push('/(tabs)/list')}/><Text size={12} color={colors.textMuted}>Places you’ve recently reviewed or updated.</Text>
+          {data.recent.length ? data.recent.map(review => <ActivityCard key={review.id} review={review}/>) : <EmptySection message={data.unavailablePlaces ? 'Your recent restaurants could not be displayed. Try loading their details again.' : 'Your first review starts your List. Find somewhere good and leave a rating.'} action="Explore places" onPress={explore}/>}
+        </View>
+        <View style={{marginTop: 28}}><SectionTitle title="Highly Rated by Friends"/><Text size={12} color={colors.textMuted} style={{marginTop: 6}}>4.00+ from recent friend reviews, with new-to-you places first.</Text>
+          {data.highlyRated.length ? <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{gap: 14, paddingVertical: 14}}>
+            {data.highlyRated.map(item => <View key={item.place.id} style={{width: 250}}><PressableScale accessibilityRole="button" accessibilityLabel={`Open ${item.place.name}, friends average ${item.average.toFixed(2)}`} onPress={() => router.push(`/place/${item.place.id}`)} style={{backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: 3, overflow: 'hidden'}}>
+              {item.place.image ? <Image source={{uri: item.place.image}} style={{width: '100%', height: 128, backgroundColor: colors.surfaceStrong}}/> : <View style={{height: 70, backgroundColor: colors.surfaceStrong}}/>}
+              <View style={{padding: 14}}><Text size={16} weight="600" numberOfLines={1}>{item.place.name}</Text><Text size={11} color={colors.textMuted} style={{marginTop: 4}}>{item.place.cuisine ?? item.place.category} · {item.place.area}</Text><View style={{marginTop: 10}}><Rating value={item.average} size={13}/></View><Text size={11} color={colors.textSecondary} style={{marginTop: 5}}>{item.friendCount} {item.friendCount === 1 ? 'friend' : 'friends'} · {item.reviewed ? 'On your List' : 'New to your List'}</Text><Attribution place={item.place}/></View>
+            </PressableScale></View>)}
+          </ScrollView> : <EmptySection message={!data.friendCount ? 'Add a few friends to discover their favourite places.' : data.unavailablePlaces ? 'Some suggestions could not be displayed. Try loading their details again.' : 'No places rated 4.00 or higher in your friends’ recent reviews yet.'} action={!data.friendCount ? 'Find friends' : 'Explore places'} onPress={!data.friendCount ? friends : explore}/>}
+        </View>
+        <View style={{marginTop: 28}}><SectionTitle title="Friends’ Activity" action="Friends" onAction={friends}/><Text size={12} color={colors.textMuted}>A few recent notes from your table.</Text>
+          {data.activity.length ? data.activity.map(review => <ActivityCard key={review.id} review={review} friend/>) : <EmptySection message={!data.friendCount ? 'Good recommendations start with people you trust.' : data.unavailablePlaces ? 'Recent friend activity could not be displayed. Try loading restaurant details again.' : 'Your friends haven’t shared any recent reviews yet.'} action={!data.friendCount ? 'Find friends' : undefined} onPress={friends}/>}
+        </View>
+      </>}
+  </Page>;
 }
-
-const makeStyles = () => StyleSheet.create({ top: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, note: { marginTop: space.lg, padding: space.md, backgroundColor: colors.soft, borderRadius: radius.md, flexDirection: 'row', alignItems: 'center', gap: space.sm }, noteText: { flex: 1, flexShrink: 1, maxWidth: 280, lineHeight: 19, color: colors.textSecondary }, noteIcon: { width: 32, height: 32, borderRadius: 16, backgroundColor: colors.lime, alignItems: 'center', justifyContent: 'center' }, carouselPagination: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 7, paddingTop: 10 }, carouselDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.line }, carouselDotActive: { width: 20, backgroundColor: colors.green } });
