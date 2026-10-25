@@ -1,3 +1,4 @@
+import { getReviewScore } from '../../../features/reviewScoring';
 import { useCallback, useState } from 'react';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
@@ -135,7 +136,7 @@ export default function PlaceScreen() {
         <Ionicons name="checkmark-circle-outline" size={19} color={colors.green} />
         <View style={{ flex: 1, minWidth:120 }}>
           <Text size={13} weight="600">You’ve reviewed this place</Text>
-          <Text size={11} color={colors.muted} style={{ marginTop: 3 }}>Your {myReview.rating.toFixed(2)} / 5.00 rating is on your List.</Text>
+          <Text size={11} color={colors.muted} style={{ marginTop: 3 }}>Your {getReviewScore(myReview).toFixed(2)} / 5.00 rating is on your List.</Text>
         </View>
         <Button title="Edit review" icon="create-outline" variant="ghost" size="small" onPress={() => router.push(`/review/${place.id}?mode=edit`)} />
       </View> : <Button title="Write a review" icon="create-outline" onPress={() => router.push(`/review/${place.id}`)} />}

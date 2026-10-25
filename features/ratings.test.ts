@@ -155,3 +155,23 @@ test('creating, editing, and deleting a review keeps the persisted mock List pro
   await mockRepository.deleteReview(created.id, 'u1');
   assert.equal((await mockRepository.getMyList('u1')).some(row => row.placeId === place.id), false);
 });
+import { getReviewScore } from './reviewScoring';
+import { combineReviews } from './combinedList';
+import { friendsAtPlace } from './personalization';
+import { calculatePlaceScores } from '../services/placeScoring';
+import type { Place, Review } from '../types/models';
+
+test('weighted score matches preview, personal List, cards, friends and combined averages', () => {
+  const place = { id: 'consistent' } as Place;
+  const review: Review = { id: 'r', placeId: place.id, userId: 'u', rating: 4.73, subRatings: { food: 9, service: 8 }, text: '', date: '' };
+  const candidate = reviewRankingCandidate(review);
+  assert.equal(getReviewScore(review), 4.68);
+  assert.equal(rankListEntries([candidate])[0].rating, 4.68);
+  assert.equal(getListPlacementPreview([], candidate).rank, 1);
+  assert.equal(friendsAtPlace([review], ['u']).average, 4.68);
+  assert.equal(combineReviews([review], ['u'], [place])[0].rating, 4.68);
+  assert.equal(combineReviews([review], ['u'], [place])[0].contributions[0].rating, 4.68);
+  assert.equal(calculatePlaceScores([place], [review]).get(place.id)?.averageRating, 4.68);
+  assert.equal(getReviewScore({ rating: 4.73 }), 4.73);
+  assert.equal(getReviewScore({ rating: 4, subRatings: { food: 8 } }), 4);
+});

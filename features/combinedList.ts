@@ -1,3 +1,4 @@
+import { averageReviewScore, getReviewScore } from './reviewScoring';
 import type { Place, Review } from '../types/models';
 import type { Friendship } from '../services/repositories';
 import type { RankedPlace } from './myList';
@@ -26,11 +27,10 @@ export function combineReviews(reviews: Review[], selectedIds: string[], places:
   }
   return [...groups].map(([placeId, rows]) => {
     // Ratings use two-decimal precision; sum cents to avoid floating-point order differences.
-    const cents = rows.reduce((sum, row) => sum + Math.round(row.rating * 100), 0);
-    const average = cents / (100 * rows.length);
+    const average = averageReviewScore(rows);
     return { placeId, place: byPlace.get(placeId)!, average, rating: Math.round((average + Number.EPSILON) * 100) / 100,
       reviewerCount: rows.length, updatedAt: new Date(0), rank: 0,
-      contributions: rows.map(row => ({ userId: row.userId, rating: row.rating, reviewId: row.id })).sort((a,b) => a.userId < b.userId ? -1 : a.userId > b.userId ? 1 : 0) };
+      contributions: rows.map(row => ({ userId: row.userId, rating: getReviewScore(row), reviewId: row.id })).sort((a,b) => a.userId < b.userId ? -1 : a.userId > b.userId ? 1 : 0) };
   }).sort((a,b) => b.average - a.average || b.reviewerCount - a.reviewerCount || (a.placeId < b.placeId ? -1 : a.placeId > b.placeId ? 1 : 0))
     .map((row,index) => ({ ...row, rank: index + 1 }));
 }

@@ -1,6 +1,8 @@
 import { Platform } from 'react-native';
 import type { ImagePickerAsset } from 'expo-image-picker';
 import { firebaseAuth } from './auth';
+import { canUploadPhotos, PHOTO_UPLOAD_RESTRICTION } from '../features/photoAccess';
+import { requestPhoto } from './photoRequest';
 
 const maxProfilePhotoSize = 4 * 1024 * 1024;
 
@@ -14,18 +16,13 @@ function endpoint(kind: 'profile' | 'review') {
 async function photoRequest(method: 'POST' | 'DELETE', body: Blob | string, contentType: string, kind: 'profile' | 'review' = 'profile') {
   const user = firebaseAuth?.currentUser;
   if (!user) throw new Error('Sign in again before uploading a photo.');
-  const response = await fetch(endpoint(kind), {
-    method, body, headers: { Authorization: `Bearer ${await user.getIdToken()}`, 'Content-Type': contentType },
-  });
-  let result;
-  try { result = await response.json(); }
-  catch { throw new Error('Photo uploads are unavailable. Check that the upload server is deployed.'); }
-  if (!response.ok) throw new Error(result.error ?? 'Could not upload your photo.');
-  return result;
+  if (method === 'POST' && !canUploadPhotos(user)) throw new Error(PHOTO_UPLOAD_RESTRICTION);
+  return requestPhoto(endpoint(kind), method, body, contentType, user, () => firebaseAuth?.currentUser);
 }
 
 async function uploadPhoto(userId: string, asset: ImagePickerAsset, kind: 'profile' | 'review'): Promise<{ path: string; url: string }> {
   if (firebaseAuth?.currentUser?.uid !== userId) throw new Error('Sign in again before uploading a photo.');
+  if (!canUploadPhotos(firebaseAuth?.currentUser)) throw new Error(PHOTO_UPLOAD_RESTRICTION);
   if ((asset.file?.size ?? asset.fileSize ?? 0) > maxProfilePhotoSize) throw new Error('Choose a photo smaller than 4 MB.');
   const contentType = asset.mimeType ?? asset.file?.type ?? 'image/jpeg';
   if (!['image/jpeg', 'image/png', 'image/webp'].includes(contentType)) throw new Error('Choose a JPEG, PNG, or WebP image.');
