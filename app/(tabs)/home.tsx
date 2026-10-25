@@ -1,3 +1,4 @@
+import { getReviewScore } from '../../features/reviewScoring';
 import { ReviewPhoto } from '../../components/ReviewPhoto';
 import { useCallback, useState } from 'react';
 import { router, useFocusEffect } from 'expo-router';
@@ -19,9 +20,9 @@ function ActivityCard({review, friend = false}: {review: HomeReview; friend?: bo
     {friend ? <PressableScale accessibilityRole="button" accessibilityLabel={`View ${review.user.name}'s profile`} onPress={() => router.push(`/user/${review.userId}`)} style={{flexDirection: 'row', gap: 9, alignItems: 'center', marginBottom: 12}}>
       <Avatar user={review.user} size={30}/><View style={{flex: 1}}><Text size={12} weight="600">{review.user.name}</Text><Text size={10} color={colors.textMuted}>{review.date}</Text></View>
     </PressableScale> : null}
-    <PressableScale accessibilityRole="button" accessibilityLabel={`Open ${review.place.name}, rated ${review.rating.toFixed(2)} out of 5`} onPress={() => router.push(`/place/${review.placeId}`)} style={{gap: 8}}>
+    <PressableScale accessibilityRole="button" accessibilityLabel={`Open ${review.place.name}, rated ${getReviewScore(review).toFixed(2)} out of 5`} onPress={() => router.push(`/place/${review.placeId}`)} style={{gap: 8}}>
       <Text size={16} weight="600">{review.place.name}</Text>
-      <View style={{flexDirection: 'row', gap: 8, alignItems: 'center', flexWrap: 'wrap'}}><Rating value={review.rating} size={12}/><Text size={11} color={colors.textMuted}>{review.place.area}{!friend ? ` · ${review.date}` : ''}</Text></View>
+      <View style={{flexDirection: 'row', gap: 8, alignItems: 'center', flexWrap: 'wrap'}}><Rating value={getReviewScore(review)} size={12}/><Text size={11} color={colors.textMuted}>{review.place.area}{!friend ? ` · ${review.date}` : ''}</Text></View>
       {review.text ? <Text size={13} color={colors.textSecondary} numberOfLines={2}>{review.text}</Text> : null}
       <Attribution place={review.place}/>{review.photo ? <ReviewPhoto uri={review.photo.url} /> : null}
     </PressableScale>

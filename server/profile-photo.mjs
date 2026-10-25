@@ -65,8 +65,17 @@ export function createPhotoHandler({ verifyToken, env = process.env, fetcher = f
       if (typeof bearer !== 'string' || !bearer.startsWith('Bearer ')) throw new PhotoError(401, 'Sign in before uploading a photo.');
       let user;
       try { user = await verifyToken(bearer.slice(7)); }
-      catch { throw new PhotoError(401, 'Your session expired. Sign in again.'); }
+      catch (error) {
+        if (error instanceof PhotoError) throw error;
+        if (['auth/argument-error', 'auth/invalid-id-token', 'auth/id-token-expired', 'auth/id-token-revoked', 'auth/user-disabled'].includes(error.code)) {
+          throw new PhotoError(401, 'Your session expired. Sign in again.');
+        }
+        throw new PhotoError(503, 'Photo authentication is temporarily unavailable. Please try again.');
+      }
       if (!user?.uid) throw new PhotoError(401, 'Sign in again.');
+      if (req.method === 'POST' && user.email?.toLowerCase() !== 'test@gmail.com') {
+        throw new PhotoError(403, 'Photo uploads are currently available only for test@gmail.com.');
+      }
       if (kind === 'review' && !/^[A-Za-z0-9_-]{1,128}$/.test(user.uid)) throw new PhotoError(403, 'This account cannot upload review photos.');
       const { cloud, key, secret } = configuration(env);
       if (req.method === 'POST' && env.CLOUDINARY_UPLOADS_ENABLED !== 'true') throw new PhotoError(503, 'Photo uploads are temporarily disabled.');

@@ -1,3 +1,4 @@
+import { getReviewScore } from '../../features/reviewScoring';
 import { ReviewPhoto } from '../../components/ReviewPhoto';
 import { useCallback, useState } from 'react';
 import { router, useFocusEffect } from 'expo-router';
@@ -77,7 +78,7 @@ export default function ProfileScreen() {
           <Image source={{ uri: review.place.image }} style={{ width: 58, height: 58, borderRadius: radius.sm, backgroundColor: colors.surfaceStrong }} />
           <View style={{ flex: 1, minWidth: 0, justifyContent: 'center' }}>
             <Text size={16} weight="700">{review.place.name}</Text>
-            <View style={{ marginTop: 5 }}><Rating value={review.rating} /></View>
+            <View style={{ marginTop: 5 }}><Rating value={getReviewScore(review)} /></View>
             {review.place.googlePlaceId && !review.place.googlePlaceId.startsWith('mock:') ? <Text size={9} color={colors.muted} numberOfLines={1} style={{ marginTop: 4 }}>{review.place.photoAttributions?.[0] ? `Photo: ${review.place.photoAttributions[0].displayName} · ` : ''}Google Maps</Text> : null}
             <Text numberOfLines={2} size={12} color={colors.muted} style={{ marginTop: 6, lineHeight: 17 }}>{review.text}</Text>{review.photo ? <ReviewPhoto uri={review.photo.url} /> : null}
           </View>

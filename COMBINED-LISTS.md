@@ -6,7 +6,7 @@ Both personal and Combined Lists support multiple cuisine selections, All cuisin
 
 ## Calculation
 
-`features/combinedList.ts` groups reviews by the canonical `placeId` already used by Firestore and personal Lists. It reuses `latestReviews` so each selected person contributes only their latest review of a restaurant. It computes the arithmetic mean of their overall ratings, without the personal List's optional category weighting. The mean is retained before rounding for ordering; the displayed rating is rounded to two decimals. Ordering is descending mean, descending unique reviewer count, then ascending stable place ID. Rank assignment precedes all filters.
+`features/combinedList.ts` groups reviews by the canonical `placeId` already used by Firestore and personal Lists. It reuses `latestReviews` so each selected person contributes only their latest review of a restaurant. It computes the arithmetic mean of their displayed List scores, using the same 90% overall / 10% optional category formula as personal Lists and review previews. Each person's score is rounded to two decimals before averaging, matching their displayed contribution. The mean is retained before rounding for ordering; the displayed rating is rounded to two decimals. Ordering is descending mean, descending unique reviewer count, then ascending stable place ID. Rank assignment precedes all filters.
 
 ## Data and access
 

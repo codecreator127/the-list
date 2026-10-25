@@ -19,7 +19,7 @@ async function invoke(handler, { method = 'POST', body = png, token = 'test-toke
 }
 function fixture(overrides = {}) {
   const calls = [];
-  const handler = createPhotoHandler({ env, checkBudget: async () => {}, verifyToken: async () => ({ uid }), uuid: () => id.split('/').at(-1),
+  const handler = createPhotoHandler({ env, checkBudget: async () => {}, verifyToken: async () => ({ uid, email: 'test@gmail.com' }), uuid: () => id.split('/').at(-1),
     fetcher: async (url, options) => { calls.push({ url, form: options.body }); return { ok: true, json: async () => url.endsWith('/destroy') ? { result: 'ok' } : { public_id: id } }; }, ...overrides });
   return { handler, calls };
 }
@@ -36,13 +36,13 @@ test('upload derives ownership from verified token and signs restricted paramete
   assert.ok(!JSON.stringify(res.data).includes('fake-secret'));
 });
 test('missing/invalid authentication makes no Cloudinary requests', async () => {
-  const f = fixture({ verifyToken: async () => { throw new Error('invalid'); } });
+  const f = fixture({ verifyToken: async () => { throw Object.assign(new Error('invalid'), { code: 'auth/invalid-id-token' }); } });
   assert.equal((await invoke(f.handler, { token: '' })).code, 401);
   assert.equal((await invoke(f.handler)).code, 401);
   assert.equal(f.calls.length, 0);
 });
 test('seed-protected accounts can manage their own photos through authenticated manual flows', async () => {
-  for (const user of [{ uid: 'GeLF6tNOsachIKnddKFNYLQvMwG3' }, { uid, email: 'TEST@gmail.com' }]) {
+  for (const user of [{ uid: 'GeLF6tNOsachIKnddKFNYLQvMwG3', email: 'test@gmail.com' }, { uid, email: 'TEST@gmail.com' }]) {
     // Mock transport only: never upload or change the real account's photo in tests.
     const calls = [];
     const f = fixture({ verifyToken: async () => user, fetcher: async (url, options) => {
@@ -117,7 +117,7 @@ test('quota pause blocks uploads while preserving cleanup',async()=>{
   assert.equal(f.calls.length,0);
   assert.equal((await invoke(f.handler,{method:'DELETE',body:JSON.stringify({publicId:id})})).code,200);
 });
-test('live adapter rejects unsigned Firebase tokens and emulator mode', async () => {
+test('live adapter rejects unsigned Firebase tokens and disables emulator mode', async () => {
   const previous = process.env.FIREBASE_PROJECT_ID;
   const emulator = process.env.FIREBASE_AUTH_EMULATOR_HOST;
   try {
@@ -127,9 +127,43 @@ test('live adapter rejects unsigned Firebase tokens and emulator mode', async ()
     const token = `${b64({ alg: 'none' })}.${b64({ sub: uid, aud: 'the-list-78f2b', exp: Math.floor(Date.now()/1000)+3600 })}.`;
     assert.equal((await invoke(liveHandler, { token })).code, 401);
     process.env.FIREBASE_AUTH_EMULATOR_HOST = 'localhost:9099';
-    assert.equal((await invoke(liveHandler)).code, 401);
+    assert.equal((await invoke(liveHandler)).code, 503);
   } finally {
     if (previous === undefined) delete process.env.FIREBASE_PROJECT_ID; else process.env.FIREBASE_PROJECT_ID = previous;
     if (emulator === undefined) delete process.env.FIREBASE_AUTH_EMULATOR_HOST; else process.env.FIREBASE_AUTH_EMULATOR_HOST = emulator;
+  }
+});
+
+test('both endpoints allow only the test email to upload; owner cleanup stays available', async () => {
+  for (const kind of ['profile', 'review']) {
+    for (const email of [undefined, 'other@gmail.com', 'test@gmail.com.evil', 'test+alias@gmail.com']) {
+      const f = fixture({ kind, verifyToken: async () => ({ uid, email }) });
+      assert.equal((await invoke(f.handler)).code, 403);
+      assert.equal(f.calls.length, 0);
+      const ownId = photoPrefix(uid, kind) + id.split('/').at(-1);
+      assert.equal((await invoke(f.handler, { method: 'DELETE', body: JSON.stringify({ publicId: ownId }) })).code, 200);
+    }
+  }
+});
+test('verification service failures are unavailable, never reported as logout', async () => {
+  const f = fixture({ verifyToken: async () => { throw Error('private infrastructure details'); } });
+  const res = await invoke(f.handler);
+  assert.equal(res.code, 503);
+  assert.match(res.data.error, /temporarily unavailable/);
+  assert.equal(f.calls.length, 0);
+});
+test('live adapter handles missing/mismatched config and uses the app project fallback', async () => {
+  const names = ['FIREBASE_PROJECT_ID', 'EXPO_PUBLIC_FIREBASE_PROJECT_ID', 'FIREBASE_AUTH_EMULATOR_HOST'];
+  const before = names.map(name => process.env[name]);
+  try {
+    for (const name of names) delete process.env[name];
+    assert.equal((await invoke(liveHandler)).code, 503);
+    process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID = 'the-list-78f2b';
+    // Malformed tokens are still rejected after initializing from the app project.
+    assert.equal((await invoke(liveHandler)).code, 401);
+    process.env.FIREBASE_PROJECT_ID = 'different-project';
+    assert.equal((await invoke(liveHandler)).code, 503);
+  } finally {
+    names.forEach((name, i) => { if (before[i] === undefined) delete process.env[name]; else process.env[name] = before[i]; });
   }
 });

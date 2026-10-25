@@ -1,3 +1,5 @@
+import { getReviewScore } from '../../../features/reviewScoring';
+import { canUploadPhotos, PHOTO_UPLOAD_RESTRICTION } from '../../../features/photoAccess';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Animated, KeyboardAvoidingView, Modal, PanResponder, Platform, StyleSheet, View } from 'react-native';
@@ -20,11 +22,12 @@ import type { ReviewPhoto as ReviewPhotoData } from '../../../types/models';
 function StarScale({ value, onChange, label, compact = false, allowClear = false }: { value: number; onChange: (rating: number) => void; label: string; compact?: boolean; allowClear?: boolean }) {
   const s = makeStyles();
   return <View style={s.scaleRow}>
-    {Array.from({ length: 10 }, (_, index) => {
+    {Array.from({ length: RATING_SCALE }, (_, index) => {
       const score = index + 1;
       const selected = score <= value;
-      return <PressableScale key={score} accessibilityRole="button" accessibilityLabel={`${label}: ${score} out of 10`} accessibilityState={{ selected: value === score }} onPress={() => onChange(allowClear && value === score ? 0 : score)} style={[s.scaleStar, compact && s.compactScaleStar, selected && s.selected]}>
-        <Ionicons name={selected ? 'star' : 'star-outline'} size={compact ? 17 : 23} color={selected ? colors.star : colors.muted} />
+      const half = !selected && score - value < 1;
+      return <PressableScale key={score} accessibilityRole="button" accessibilityLabel={`${label}: ${score} out of 5`} accessibilityState={{ selected: value === score }} onPress={() => onChange(allowClear && value === score ? 0 : score)} style={[s.scaleStar, compact && s.compactScaleStar, selected && s.selected]}>
+        <Ionicons name={selected ? 'star' : half ? 'star-half' : 'star-outline'} size={compact ? 17 : 23} color={selected ? colors.star : colors.muted} />
       </PressableScale>;
     })}
   </View>;
@@ -129,14 +132,15 @@ function ListPlacementPreview({ place, rating, subRatings, originalReview, data,
       <Text size={13} weight="700">Your List placement</Text>
       {placement ? <Text size={15} weight="700" color={colors.accent}>#{placement.rank} of {placement.total}</Text> : null}
     </View>
+    <Text size={13} weight="600" color={colors.accent} style={{ marginTop: 6 }}>Your List score: {getReviewScore({ rating, subRatings }).toFixed(2)} / 5.00</Text>
     <Text size={10} color={colors.textMuted} style={s.previewCaption}>PREVIEW · Not saved until you {originalReview ? 'save changes' : 'share your review'}</Text>
     {loading ? <Text size={11} color={colors.textMuted} style={s.previewStatus}>Loading your List…</Text>
       : error ? <Text size={11} color={colors.textMuted} style={s.previewStatus}>{error}</Text>
         : placement && proposed ? <View style={s.previewRows}>
-          {placement.above ? <PlacementRow rank={placement.rank - 1} name={namesByPlace.get(placement.above.placeId) ?? placement.above.placeId} rating={placement.above.rating} animateKey={placement.rank} />
+          {placement.above ? <PlacementRow rank={placement.rank - 1} name={namesByPlace.get(placement.above.placeId) ?? placement.above.placeId} rating={normalizeRating(placement.above.weightedRating)} animateKey={placement.rank} />
             : <View style={[s.previewRow, s.previewPlaceholder]}><Text size={11} color={colors.textMuted}>{data?.items.length ? 'Top of your List' : 'Your List is empty'}</Text></View>}
-          <PlacementRow rank={placement.rank} name={place?.name ?? 'This restaurant'} rating={rating} highlighted animateKey={placement.rank} />
-          {placement.below ? <PlacementRow rank={placement.rank + 1} name={namesByPlace.get(placement.below.placeId) ?? placement.below.placeId} rating={placement.below.rating} animateKey={placement.rank} />
+          <PlacementRow rank={placement.rank} name={place?.name ?? 'This restaurant'} rating={getReviewScore({ rating, subRatings })} highlighted animateKey={placement.rank} />
+          {placement.below ? <PlacementRow rank={placement.rank + 1} name={namesByPlace.get(placement.below.placeId) ?? placement.below.placeId} rating={normalizeRating(placement.below.weightedRating)} animateKey={placement.rank} />
             : <View style={[s.previewRow, s.previewPlaceholder]}><Text size={11} color={colors.textMuted}>{data?.items.length ? 'Last place on your List' : 'No other places yet'}</Text></View>}
         </View> : null}
   </View>;
@@ -249,6 +253,7 @@ export default function WriteReview() {
   }, [success, cleanupPending]);
 
   async function selectPhoto() {
+    if (!canUploadPhotos(firebaseAuth?.currentUser)) { setError(PHOTO_UPLOAD_RESTRICTION); return; }
     try {
       const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.8 });
       if (result.canceled) return;
@@ -350,15 +355,15 @@ export default function WriteReview() {
       <ListPlacementPreview place={place} rating={rating} subRatings={subRatings} originalReview={originalReview} data={previewData} loading={previewLoading} error={previewError} />
       <View style={s.categories}>
         <Text size={15} weight="700">Optional details</Text>
-        <Text size={12} color={colors.muted} style={{ marginTop: 5, lineHeight: 18 }}>These category ratings together influence your overall score by just 10%.</Text>
+        <Text size={12} color={colors.muted} style={{ marginTop: 5, lineHeight: 18 }}>Your List score uses 90% of your overall rating and 10% of the average of the categories you rate. Without categories, it uses your overall rating.</Text>
         {reviewSubcategories.map(category => <View key={category} style={s.categoryRow}>
           <View style={s.labelRow}>
             <Text size={13} weight="600">{categoryLabels[category]}</Text>
-            <Text size={11} color={subRatings[category] ? colors.green : colors.muted}>{subRatings[category] ? `${subRatings[category]?.toFixed(2)} / 10.00` : 'Optional'}</Text>
+            <Text size={11} color={subRatings[category] ? colors.green : colors.muted}>{subRatings[category] ? `${((subRatings[category] ?? 0) / 2).toFixed(2)} / 5.00` : 'Optional'}</Text>
           </View>
-          <StarScale compact allowClear label={categoryLabels[category]} value={subRatings[category] ?? 0} onChange={value => setSubRatings(current => {
+          <StarScale compact allowClear label={categoryLabels[category]} value={(subRatings[category] ?? 0) / 2} onChange={value => setSubRatings(current => {
             const next = { ...current };
-            if (value) next[category] = value;
+            if (value) next[category] = value * 2;
             else delete next[category];
             return next;
           })} />
@@ -373,7 +378,7 @@ export default function WriteReview() {
         <Text size={11} color={colors.muted} style={{ marginTop: 5 }}>One JPEG, PNG or WebP, up to 4 MB.</Text>
         {photo?.uri || (!removePhoto && originalReview?.photo?.url) ? <ReviewPhoto uri={photo?.uri ?? originalReview!.photo!.url} label="Review photo preview" /> : null}
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 10 }}>
-          <Button title={photo || (!removePhoto && originalReview?.photo) ? 'Change photo' : 'Add photo'} icon="image-outline" variant="secondary" size="small" onPress={selectPhoto} disabled={saving || deleting || success || !!cleanupPending} />
+          {canUploadPhotos(firebaseAuth?.currentUser) ? <Button title={photo || (!removePhoto && originalReview?.photo) ? 'Change photo' : 'Add photo'} icon="image-outline" variant="secondary" size="small" onPress={selectPhoto} disabled={saving || deleting || success || !!cleanupPending} /> : <Text size={11} color={colors.muted}>{PHOTO_UPLOAD_RESTRICTION}</Text>}
           {photo || (!removePhoto && originalReview?.photo) ? <Button title="Remove photo" icon="close-outline" variant="ghost" size="small" disabled={saving || deleting || success || !!cleanupPending} onPress={() => { setPhoto(undefined); setRemovePhoto(!!originalReview?.photo); }} /> : null}
         </View>
       </View> : null}
@@ -458,9 +463,9 @@ const makeStyles = () => StyleSheet.create({
   previewRowHighlighted: { backgroundColor: colors.surfaceStrong, borderLeftColor: colors.accent },
   previewStatus: { marginTop: 9 },
   previewPlaceholder: { paddingHorizontal: 8 },
-  scaleRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 5, paddingVertical: 8 },
+  scaleRow: { flexDirection: 'row', flexWrap: 'nowrap', gap: 4, paddingVertical: 8 },
   scaleStar: { width: 44, height: 48, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surfaceElevated, borderWidth: 1, borderColor: colors.border },
-  compactScaleStar: { width: 44, height: 44 },
+  compactScaleStar: { flex: 1, maxWidth: 44, minWidth: 0, height: 44 },
   selected: { backgroundColor: colors.lime, borderColor: colors.star },
   labelRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   categories: { marginTop: 20, padding: 15, borderRadius: radius.md, backgroundColor: colors.white, borderWidth: 1, borderColor: colors.line },

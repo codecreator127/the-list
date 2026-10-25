@@ -23,7 +23,7 @@
     "seed:cleanup": "tsx scripts/seed.mjs cleanup",
     "test:seed": "tsx --test scripts/seed.test.mjs",
     "test:seed:emulator": "firebase emulators:exec --project demo-list-seed-guards --only auth,firestore \"tsx scripts/seed-emulator.test.mjs\"",
-    "test:photos": "node --test server/profile-photo.test.mjs server/photo-budget.test.mjs",
+    "test:photos": "node --test server/profile-photo.test.mjs server/photo-budget.test.mjs && tsx --test services/photoRequest.test.ts",
     "uploads:check": "node --env-file=.env scripts/check-cloudinary.mjs",
     "uploads:smoke": "node --env-file=.env scripts/smoke-profile-photo.mjs",
     "uploads:dev": "node --env-file=.env scripts/serve-uploads.mjs",

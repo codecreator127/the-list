@@ -11,9 +11,10 @@ import { configuration } from '../server/profile-photo.mjs';
 const projectId = 'the-list-78f2b';
 const kind = process.argv.includes('--review') ? 'review' : 'profile';
 if (!process.argv.includes('--live')) {
-  console.log('Dry run: verify Cloudinary Free plan; create a disposable Firebase Auth user; upload/download/delete a generated PNG through the real API; delete the disposable Auth user. No Firestore writes. Use --live --project=the-list-78f2b to execute.');
+  console.log('Live smoke uploads are paused while uploads are restricted to test@gmail.com. Run npm run test:photos for automated verification.');
   process.exit(0);
 }
+throw new Error('Live upload smoke tests are paused while uploads are restricted to test@gmail.com. Run npm run test:photos instead.');
 assert.ok(process.argv.includes(`--project=${projectId}`), 'Pass the explicit Firebase project ID.');
 assert.equal(process.env.FIREBASE_PROJECT_ID, projectId, 'Server Firebase project mismatch.');
 assert.equal(process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID, projectId, 'Client Firebase project mismatch.');

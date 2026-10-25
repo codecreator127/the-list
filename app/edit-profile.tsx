@@ -1,3 +1,4 @@
+import { canUploadPhotos, PHOTO_UPLOAD_RESTRICTION } from '../features/photoAccess';
 import { useCallback, useMemo, useState } from 'react';
 import { router, useFocusEffect } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
@@ -67,6 +68,7 @@ export default function EditProfileScreen() {
   ), [user, normalizedUsername, displayName, photo]);
 
   async function selectPhoto() {
+    if (!canUploadPhotos(firebaseAuth?.currentUser)) { setError(PHOTO_UPLOAD_RESTRICTION); return; }
     setError('');
     setSuccess('');
     try {
@@ -157,7 +159,7 @@ export default function EditProfileScreen() {
         <View style={{ flex: 1 }}>
           <Text size={14} weight="600">Profile picture</Text>
           <Text size={12} color={colors.muted} style={{ marginTop: 4 }}>JPEG, PNG or WebP, up to 4 MB.</Text>
-          {isFirebaseRepositoryEnabled ? <Button title={photo ? 'Choose a different photo' : 'Upload photo'} icon="image-outline" variant="secondary" size="small" disabled={saving} onPress={selectPhoto} style={{ alignSelf: 'flex-start', marginTop: 10 }}/> : <Text size={11} color={colors.muted} style={{ marginTop: 8 }}>Photo uploads are available for Firebase accounts.</Text>}
+          {isFirebaseRepositoryEnabled && canUploadPhotos(firebaseAuth?.currentUser) ? <Button title={photo ? 'Choose a different photo' : 'Upload photo'} icon="image-outline" variant="secondary" size="small" disabled={saving} onPress={selectPhoto} style={{ alignSelf: 'flex-start', marginTop: 10 }}/> : <Text size={11} color={colors.muted} style={{ marginTop: 8 }}>{PHOTO_UPLOAD_RESTRICTION}</Text>}
         </View>
       </View>
       <Text size={12} weight="600" style={{ marginBottom: 6 }}>Display name</Text>

@@ -1,6 +1,6 @@
 import { collection, deleteField, doc, endAt, getDoc, getDocs, getDocsFromServer, limit, onSnapshot, orderBy, query, runTransaction, serverTimestamp, startAt, where } from 'firebase/firestore';
 import { createBatchedReads } from './batchedReads';
-import type { PersonalListEntry, Place, Review, User } from '../types/models';
+import type { Place, Review, User } from '../types/models';
 import { firestore } from './firebase';
 import { firebaseAuth } from './auth';
 import type { CreateReview, FoodRepository, Friendship, UpdateReview, UserProfileInput } from './repositories';
@@ -21,7 +21,6 @@ const friendshipsCollection = () => collection(db(), 'friendships');
 const usernameReservation = (username:string) => doc(db(),'usernames',username);
 const userListCollection = (userId: string) => collection(db(), 'users', userId, 'list');
 const userListLock = (userId: string) => doc(db(), 'users', userId, 'listMeta', 'state');
-function fromListEntry(raw: any): PersonalListEntry { return { placeId:raw.placeId, rank:raw.rank, rating:normalizeStoredRating(raw.rating,raw.ratingScale,10), updatedAt:asDate(raw.updatedAt)??new Date(0) }; }
 function projectReviews(reviews: Review[]) { return rankListEntries(reviews.map(reviewRankingCandidate)); }
 function persistListProjection(transaction: any, userId: string, listSnapshot: any, reviews: Review[], changedPlace?: { placeId: string; updatedAt: any }) {
  const ranked=projectReviews(reviews);const retained=new Set(ranked.map(entry=>entry.placeId));
@@ -72,16 +71,13 @@ export const firestoreRepository: FoodRepository = {
  async getReviewsForPlace(placeId) { const snapshot=await getDocs(query(reviewsCollection(),where('placeId','==',placeId)));return snapshot.docs.map(row=>fromReview(row.id,row.data())); },
  async getRecentReviews() { const snapshot=await getDocs(reviewsCollection());return snapshot.docs.map(row=>fromReview(row.id,row.data())); },
  async getMyList(userId) {
-  if(firebaseAuth?.currentUser?.uid!==userId) {
-   const snapshot=await getDocs(query(userListCollection(userId),orderBy('rank','asc')));
-   if(snapshot.size)return snapshot.docs.map(row=>fromListEntry(row.data()));
-   const reviews=await getDocs(reviewQueryForUser(userId));
-   return projectReviews(reviews.docs.map(row=>fromReview(row.id,row.data())));
+  if (firebaseAuth?.currentUser?.uid === userId) {
+   const lock=await getDoc(userListLock(userId));
+   if(!lock.exists()||lock.data().initialized!==true)await this.rebuildMyListFromReviews(userId);
   }
-  const lock=await getDoc(userListLock(userId));
-  if(!lock.exists()||lock.data().initialized!==true)await this.rebuildMyListFromReviews(userId);
-  const snapshot=await getDocs(query(userListCollection(userId),orderBy('rank','asc')));
-  return snapshot.docs.map(row=>fromListEntry(row.data()));
+  // Review source data also covers cached Lists saved before weighted score display.
+  const reviews=await getDocs(reviewQueryForUser(userId));
+  return projectReviews(reviews.docs.map(row=>fromReview(row.id,row.data())));
  },
  async rebuildMyListFromReviews(userId) { await runTransaction(db(),async transaction=>{const inputs=await readProjectionInputs(transaction,userId);const reviews=inputs.reviewSnapshot.docs.map((row:any)=>fromReview(row.id,row.data()));persistListProjection(transaction,userId,inputs.listSnapshot,reviews);advanceListRevision(transaction,inputs);}); },
  async createReview(input:CreateReview) {

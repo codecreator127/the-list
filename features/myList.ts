@@ -67,7 +67,7 @@ export function rankListEntries(entries: ListRankingCandidate[]): PersonalListEn
   return rankListCandidates(entries).map(entry => ({
     placeId: entry.placeId,
     rank: entry.rank,
-    rating: entry.rating,
+    rating: normalizeRating(entry.weightedRating),
     updatedAt: entry.updatedAt,
   }));
 }

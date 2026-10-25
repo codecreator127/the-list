@@ -1,3 +1,5 @@
+import { averageReviewScore } from './reviewScoring';
+import { normalizeRating } from './ratings';
 import type { Review } from '../types/models';
 import type { Friendship } from '../services/repositories';
 
@@ -23,7 +25,7 @@ export function latestReviews(reviews: Review[]): Review[] {
 export function friendsAtPlace(reviews: Review[], friendIds: string[]) {
   const friends = new Set(friendIds);
   const rows = latestReviews(reviews.filter(review => friends.has(review.userId)));
-  return { reviews: rows, average: rows.length ? rows.reduce((sum, row) => sum + row.rating, 0) / rows.length : undefined };
+  return { reviews: rows, average: rows.length ? normalizeRating(averageReviewScore(rows)) : undefined };
 }
 
 export function selectHomeReviews(ownReviews: Review[], friendReviews: Review[]) {
@@ -33,7 +35,7 @@ export function selectHomeReviews(ownReviews: Review[], friendReviews: Review[])
   const grouped = new Map<string, Review[]>();
   for (const review of friends) grouped.set(review.placeId, [...(grouped.get(review.placeId) ?? []), review]);
   const highlyRated = [...grouped].map(([placeId, rows]) => ({
-    placeId, average: rows.reduce((sum, row) => sum + row.rating, 0) / rows.length,
+    placeId, average: normalizeRating(averageReviewScore(rows)),
     friendCount: rows.length, reviewed: reviewed.has(placeId), latestAt: reviewTime(rows[0]),
   })).filter(row => row.average >= 4).sort((a, b) => Number(a.reviewed) - Number(b.reviewed)
     || b.average - a.average || b.friendCount - a.friendCount || b.latestAt - a.latestAt || a.placeId.localeCompare(b.placeId)).slice(0, 4);
