@@ -34,6 +34,8 @@ Playwright starts a separate Expo web server at `http://127.0.0.1:4173` with moc
 
 Run `npm run test:e2e:auth` with the Firebase CLI and Java installed to exercise signed-in browser flows against local Auth and Firestore emulators. The suite uses disposable local accounts and intercepts image service requests.
 
+For an iPhone-sized WebKit run, install WebKit with `npx playwright install webkit` and run `npm run test:e2e:webkit`.
+
 ## Data mode
 
 - In local development, with no Firebase configuration, the app uses the local mock repository. Set `EXPO_PUBLIC_DATA_MODE=mock` to force mock data. Production exports require Firebase and the browser Places key and reject mock mode.

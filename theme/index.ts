@@ -145,7 +145,15 @@ let activeTypefaces: Typefaces = systemTypefaces;
 export function setBundledTypefacesReady(ready: boolean) {
   activeTypefaces = ready ? bundledTypefaces : systemTypefaces;
 }
-export const typefaces = new Proxy({} as Typefaces, { get: (_target, key: keyof Typefaces) => activeTypefaces[key] });
+export const typefaces = new Proxy({} as Typefaces, {
+	get: (_target, key: keyof Typefaces) => {
+		const family = activeTypefaces[key];
+		// WebKit can register a font face before its file has loaded.
+		return Platform.OS === 'web' && activeTypefaces === bundledTypefaces
+			? family + ', ' + systemTypefaces[key]
+			: family;
+	},
+});
 
 export const shadow = new Proxy({ shadowColor: '', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.12, shadowRadius: 16, elevation: 2 }, {
 	get: (target, key: string | symbol) => key === 'shadowColor' ? activePalette.shadow : Reflect.get(target, key),

@@ -118,8 +118,13 @@ test('keeps the default search area until the user opts into device location', a
 });
 
 test('opens the List when bundled typefaces cannot load', async ({ page }) => {
-  await page.route(/\.(ttf|woff2?)(\?|$)/i, route => route.abort());
+  let blockedFonts = 0;
+  await page.route(/\.(ttf|woff2?)(\?|$)/i, route => {
+    blockedFonts++;
+    return route.abort();
+  });
   await page.goto('/list', { waitUntil: 'domcontentloaded' });
-  await expect(page.getByText('YOUR PLACES', { exact: true })).toHaveCSS('font-family', /^monospace(?:,|$)/);
+  await expect(page.getByText('YOUR PLACES', { exact: true })).toHaveCSS('font-family', /(?:^|,\s*)monospace(?:,|$)/);
+  expect(blockedFonts).toBeGreaterThan(0);
   await expect(page.getByRole('button', { name: 'Tasting Passport', exact: true })).toBeVisible();
 });
