@@ -8,3 +8,5 @@ web-build/
 !.env.example
 *-debug.log*
 .vercel/
+/playwright-report/
+/test-results/

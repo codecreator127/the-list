@@ -9,6 +9,7 @@ import { mockRepository } from './mockRepository';
 import type { FoodRepository, Friendship } from './repositories';
 import { firebaseAuth } from './auth';
 import { applyPlaceScores, calculatePlaceScores } from './placeScoring';
+import { matchesSearchText } from './placeSearch';
 import type { RankedPlace } from '../features/myList';
 import { createPersonalizedData } from './personalizedData';
 
@@ -50,7 +51,7 @@ export const foodService = {
   let results:PlaceSearchResult[];
   if(hasGooglePlacesConfig) results=await googlePlaces.search(query,origin,radiusMeters);
   else if(isFirebaseRepositoryEnabled) throw new Error('Google Places is not configured. Add a Places API key to search live venues.');
-  else results=(await mockRepository.listPlaces()).filter(place=>!query.trim()||`${place.name} ${place.cuisine??''} ${place.category} ${place.area} ${place.address}`.toLowerCase().includes(query.trim().toLowerCase())).map(mockSearchResult);
+  else results=(await mockRepository.listPlaces()).map(mockSearchResult).filter(place=>matchesSearchText(place,query));
 
   const [savedPlaces,reviews]=await Promise.all([repository.listPlaces(),repository.getRecentReviews()]);
   const scores=calculatePlaceScores(savedPlaces,reviews);

@@ -17,6 +17,15 @@ The start scripts use Expo's offline mode so Metro can start when Expo's package
 
 Copy `.env.example` to `.env` if you want to configure external services. Expo public environment values are included in client bundles; restrict API keys to the required APIs and app origins/identifiers. Restart Expo after changing environment values.
 
+## Browser tests
+
+```sh
+npx playwright install chromium
+npm run test:e2e
+```
+
+Playwright starts a separate Expo web server at `http://127.0.0.1:4173` with mock data and runs the tests in desktop and mobile Chromium. Use `npm run test:e2e -- --headed` to watch the browser.
+
 ## Data mode
 
 - In local development, with no Firebase configuration, the app uses the local mock repository. Set `EXPO_PUBLIC_DATA_MODE=mock` to force mock data. Production exports require Firebase and the browser Places key and reject mock mode.

@@ -62,18 +62,15 @@ export default function PlaceScreen() {
     return () => { active = false;stopFriendships(); };
   }, [id, retry, combinedUsers]));
 
-  const goToMain = () => {
-    if(from==='combined'){if(router.canGoBack())router.back();else router.replace('/combined-list');return;}
-    if (from === 'search') {
-      if (router.canGoBack()) router.back();
-      else router.replace('/(tabs)/search');
-      return;
-    }
-    router.replace('/(tabs)/home');
+  const goBack = () => {
+    if (router.canGoBack()) router.back();
+    else if (from === 'combined') router.replace('/combined-list');
+    else if (from === 'search') router.replace('/(tabs)/search');
+    else router.replace('/(tabs)/home');
   };
 
   if (error) return <Page>
-    <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}><BackButton onPress={goToMain} /></View>
+    <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}><BackButton onPress={goBack} /></View>
     <Text size={16} weight="600">Couldn’t load this place</Text>
     <Text size={13} color={colors.muted} style={{ marginTop: 7, lineHeight: 20 }}>{error}</Text>
     <Button title="Try again" variant="secondary" onPress={() => setRetry(value => value + 1)} style={{marginTop: 14}}/>
@@ -89,7 +86,7 @@ export default function PlaceScreen() {
 
   return <Page>
     <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 15 }}>
-      <BackButton onPress={goToMain} /><Text size={14} weight="600" style={{ marginLeft: 12 }}>The List</Text>
+      <BackButton onPress={goBack} /><Text size={14} weight="600" style={{ marginLeft: 12 }}>The List</Text>
     </View>
     <View style={s.hero}>
       {place.image ? <Image source={{ uri: place.image }} style={s.image} /> : <View style={[s.image, { backgroundColor: colors.greenDark }]} />}

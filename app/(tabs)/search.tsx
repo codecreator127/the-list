@@ -102,7 +102,7 @@ export default function SearchScreen() {
   }
 
   const activeFilterCount = Number(cuisine !== 'All cuisines') + Number(area !== 'All areas') + Number(distanceKm !== undefined);
-  const clearFilters = () => { setCuisine('All cuisines'); setArea('All areas'); setDistanceKm(15); setSort('recommended'); setQuery(''); };
+  const clearFilters = () => { setCuisine('All cuisines'); setArea('All areas'); setDistanceKm(undefined); setSort('recommended'); setQuery(''); };
 
   return <Page>
     <Text size={30} weight="700">Find your next favourite</Text>

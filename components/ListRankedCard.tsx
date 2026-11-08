@@ -16,7 +16,7 @@ export const ListRankedCard=memo(function ListRankedCard({item,onPress,reviewerC
       <Text size={11} color={colors.accent} style={s.rank}>{String(item.rank).padStart(2,'0')}</Text>
       {place.image?<Image source={{uri:place.image}} style={s.photo}/>:<View style={[s.photo,s.fallback]}><Ionicons name="restaurant-outline" size={23} color={colors.accent}/></View>}
       <View style={s.info}>
-        <Text size={14} weight="600" numberOfLines={1}>{place.name}</Text>
+        <Text size={14} weight="600" numberOfLines={2}>{place.name}</Text>
         <Text size={10} color={colors.textMuted} numberOfLines={1} style={{marginTop:3}}>{place.cuisine?.trim()||place.category||'Other / unspecified'}{place.area?` · ${place.area}`:''}</Text>
         {reviewerCount!==undefined?<Text size={11} color={colors.textSecondary} style={{marginTop:5}}>{item.rating.toFixed(2)} · {reviewerCount} {reviewerCount===1?'review':'reviews'}</Text>:<View style={{marginTop:5}}><RatingStars value={item.rating} size={11}/></View>}
       </View>
