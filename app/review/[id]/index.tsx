@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Animated, KeyboardAvoidingView, Modal, PanResponder, Platform, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -10,7 +10,7 @@ import { reviewSubcategories, type Place, type Review, type ReviewSubcategory } 
 import { colors, radius, typefaces, useTheme } from '../../../theme';
 import { PressableScale, useReducedMotion } from '../../../components/motion';
 import { getListPlacementPreview, reviewRankingCandidate, type RankedPlace } from '../../../features/myList';
-import { normalizeRating, ratingFromSliderProgress, RATING_SCALE } from '../../../features/ratings';
+import { normalizeRating, ratingFromSliderProgress, RATING_PRECISION, RATING_SCALE } from '../../../features/ratings';
 import * as ImagePicker from 'expo-image-picker';
 import { firebaseAuth } from '../../../services/auth';
 import { uploadReviewPhoto, deleteReviewPhoto } from '../../../services/profilePhoto';
@@ -50,11 +50,42 @@ function RatingSlider({ value, onChange }: { value: number; onChange: (rating: n
     onPanResponderMove: event => setFromLocation(event.nativeEvent.locationX),
   }), [width]);
 
+  const step = 1 / RATING_PRECISION;
+  const adjust = (delta: number) => onChange(normalizeRating(Math.min(RATING_SCALE, Math.max(0, value + delta))));
+  const valueText = value.toFixed(2) + ' out of ' + RATING_SCALE.toFixed(2);
+  const onKeyDown = (event: KeyboardEvent) => {
+    switch (event.key) {
+      case 'ArrowRight':
+      case 'ArrowUp': adjust(step); break;
+      case 'ArrowLeft':
+      case 'ArrowDown': adjust(-step); break;
+      case 'Home': onChange(0); break;
+      case 'End': onChange(RATING_SCALE); break;
+      default: return;
+    }
+    event.preventDefault();
+  };
+  const webAccessibility = Platform.OS === 'web' ? {
+    tabIndex: 0 as const,
+    'aria-valuemin': 0,
+    'aria-valuemax': RATING_SCALE,
+    'aria-valuenow': value,
+    'aria-valuetext': valueText,
+    onKeyDown,
+  } : {};
+
   return <View style={s.sliderWrap}>
     <View
+      accessible
       accessibilityRole="adjustable"
       accessibilityLabel="Overall rating slider"
-      accessibilityValue={{ min: 0, max: RATING_SCALE, now: value, text: `${value.toFixed(2)} out of 5.00` }}
+      accessibilityValue={{ min: 0, max: RATING_SCALE, now: value, text: valueText }}
+      accessibilityActions={[{ name: 'increment' }, { name: 'decrement' }]}
+      onAccessibilityAction={({ nativeEvent }) => {
+        if (nativeEvent.actionName === 'increment') adjust(step);
+        if (nativeEvent.actionName === 'decrement') adjust(-step);
+      }}
+      {...webAccessibility}
       onLayout={event => setWidth(event.nativeEvent.layout.width)}
       style={s.sliderHitArea}
       {...responder.panHandlers}

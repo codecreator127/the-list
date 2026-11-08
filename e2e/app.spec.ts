@@ -63,3 +63,38 @@ test('creates, edits and removes a review from the personal List', async ({ page
   await expect(page).toHaveURL(/\/list$/);
   await expect(reviewedPlace).toHaveCount(0);
 });
+
+
+test('filters a Combined List without renumbering its restaurants', async ({ page }) => {
+  await page.goto('/list', { waitUntil: 'domcontentloaded' });
+  await page.getByRole('button', { name: 'Combined List', exact: true }).click();
+  const yourself = page.getByRole('checkbox', { name: 'Include yourself' });
+  await expect(yourself).toBeChecked();
+  const porcine = page.getByRole('button', { name: /Rank \d+: Porcine, rated 5\.00 out of 5\.00, 1 review/ });
+  const originalLabel = await porcine.getAttribute('aria-label');
+
+  await page.getByPlaceholder('Search restaurants').fill('Porcine');
+  await expect(porcine).toHaveAttribute('aria-label', originalLabel!);
+  await expect(page.getByText('1 of 3 restaurants · Original combined ranks')).toBeVisible();
+  await porcine.click();
+  await expect(page.getByText('Your Combined List', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Go back' }).click();
+  await expect(page).toHaveURL(/\/combined-list$/);
+  await expect(yourself).toBeChecked();
+  await yourself.click();
+  await expect(page.getByText('Select at least one person to build a Combined List.')).toBeVisible();
+});
+
+test('adjusts the overall rating with the keyboard', async ({ page }) => {
+  await page.goto('/review/p2', { waitUntil: 'domcontentloaded' });
+  const slider = page.getByRole('slider', { name: 'Overall rating slider' });
+  await page.getByRole('button', { name: 'Go back' }).focus();
+  await page.keyboard.press('Tab');
+  await expect(slider).toBeFocused();
+  await page.keyboard.press('End');
+  await expect(slider).toHaveAttribute('aria-valuenow', '5');
+  await slider.press('ArrowLeft');
+  await expect(slider).toHaveAttribute('aria-valuenow', '4.99');
+  await slider.press('Home');
+  await expect(slider).toHaveAttribute('aria-valuenow', '0');
+});
