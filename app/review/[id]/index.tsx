@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Animated, KeyboardAvoidingView, Modal, PanResponder, Platform, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -14,6 +14,8 @@ import { normalizeRating, ratingFromSliderProgress, RATING_PRECISION, RATING_SCA
 import * as ImagePicker from 'expo-image-picker';
 import { firebaseAuth } from '../../../services/auth';
 import { uploadReviewPhoto, deleteReviewPhoto } from '../../../services/profilePhoto';
+import { PodiumCelebration } from '../../../components/PodiumCelebration';
+import type { PodiumChange } from '../../../features/podium';
 import { ReviewPhoto } from '../../../components/ReviewPhoto';
 import type { ReviewPhoto as ReviewPhotoData } from '../../../types/models';
 
@@ -193,6 +195,7 @@ export default function WriteReview() {
   const [deleteConfirmationVisible, setDeleteConfirmationVisible] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [podiumChanges, setPodiumChanges] = useState<PodiumChange[]>([]);
   const [error, setError] = useState('');
   const [place, setPlace] = useState<Place>();
   const [previewData, setPreviewData] = useState<{ userId: string; items: RankedPlace[]; reviews: Review[] }>();
@@ -217,7 +220,7 @@ export default function WriteReview() {
     setPreviewError('');
 
     async function load() {
-      void foodService.getMyListPreviewData().then(data => {
+      void foodService.getMyListWithReviews().then(data => {
         if (active) setPreviewData(data);
       }).catch(cause => {
         if (active) setPreviewError(cause instanceof Error ? 'List preview is unavailable.' : 'Could not load your List preview.');
@@ -273,11 +276,16 @@ export default function WriteReview() {
     });
   }, [id, isEditing]);
 
+  const returnToPlace = useCallback(() => {
+    if (router.canGoBack()) router.back();
+    else router.replace({ pathname: '/place/[id]', params: { id } });
+  }, [id]);
+
   useEffect(() => {
-    if (!success || cleanupPending) return;
-    const timer = setTimeout(() => router.back(), 360);
+    if (!success || cleanupPending || podiumChanges.length) return;
+    const timer = setTimeout(returnToPlace, 360);
     return () => clearTimeout(timer);
-  }, [success, cleanupPending]);
+  }, [success, cleanupPending, podiumChanges.length, returnToPlace]);
 
   async function selectPhoto() {
     try {
@@ -313,6 +321,7 @@ export default function WriteReview() {
       const photoChange = stagedPhoto ?? (removePhoto ? null : undefined);
       const result = isEditing ? await foodService.updateReview(id, rating, body.trim(), subRatings, photoChange)
         : await foodService.addReview(id, rating, body.trim(), subRatings, stagedPhoto);
+      setPodiumChanges(result.podiumChanges);
       setCleanupPending(result.cleanupPending);
       if (result.cleanupPending) setError('Your review was saved, but the previous photo could not be removed. Retry photo cleanup below.');
       setSuccess(true);
@@ -357,7 +366,7 @@ export default function WriteReview() {
 
   return <Page maxWidth={720}>
     <View style={s.header}>
-      <BackButton onPress={() => router.back()} />
+      <BackButton onPress={returnToPlace} />
       <Text size={15} weight="600" style={{ marginLeft: 12 }}>{isEditing ? 'Edit review' : 'Write a review'}</Text>
     </View>
     <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
@@ -430,6 +439,13 @@ export default function WriteReview() {
         />
       </View> : null}
     </KeyboardAvoidingView>
+    {podiumChanges.length ? <PodiumCelebration
+      changes={podiumChanges.map(change => ({
+        ...change,
+        name: change.placeId === id ? place?.name : previewData?.items.find(item => item.placeId === change.placeId)?.place.name,
+      }))}
+      onClose={() => setPodiumChanges([])}
+    /> : null}
     <Modal
       visible={deleteConfirmationVisible}
       transparent

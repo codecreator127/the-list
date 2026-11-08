@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { ActivityIndicator, Image, Linking, Platform, Pressable, ScrollView, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Button, FilterChip, Page, Rating, SearchBar, SectionTitle, Text } from '../../components/ui';
@@ -30,6 +30,7 @@ function ActiveChip({ label, onRemove }: { label: string; onRemove: () => void }
 export default function SearchScreen() {
   useTheme();
   const styles = makeStyles();
+  const { cuisine: requestedCuisine } = useLocalSearchParams<{ cuisine?: string }>();
   const [query, setQuery] = useState('');
   const [places, setPlaces] = useState<PlaceSearchResult[]>([]);
   const [cuisine, setCuisine] = useState('All cuisines');
@@ -46,11 +47,21 @@ export default function SearchScreen() {
   const [mapVisible, setMapVisible] = useState(true);
 
   useEffect(() => {
+    if (!requestedCuisine || !CUISINE_OPTIONS.some(option => option === requestedCuisine)) return;
+    setQuery('');
+    setCuisine(requestedCuisine);
+    setArea('All areas');
+    setDistanceKm(undefined);
+    setSort('recommended');
+    router.setParams({ cuisine: undefined });
+  }, [requestedCuisine]);
+
+  useEffect(() => {
     let active = true;
     setLoading(true);
     setError('');
     const timer = setTimeout(() => {
-      foodService.searchPlaces(query, searchOrigin, (distanceKm ?? 50) * 1000).then(items => {
+      foodService.searchPlaces(query, searchOrigin, (distanceKm ?? 50) * 1000, cuisine).then(items => {
         if (active) { setPlaces(items); setLoading(false); }
       }).catch(cause => {
         if (active) {
@@ -61,7 +72,7 @@ export default function SearchScreen() {
       });
     }, query.trim() ? 300 : 0);
     return () => { active = false; clearTimeout(timer); };
-  }, [query, searchOrigin.latitude, searchOrigin.longitude, distanceKm]);
+  }, [query, cuisine, searchOrigin.latitude, searchOrigin.longitude, distanceKm]);
 
   const results = useMemo(() => filterAndSortPlaces(places, {
     query, cuisine, area, distanceKm, origin: searchOrigin, sort,
@@ -80,8 +91,6 @@ export default function SearchScreen() {
     }
     locationRequestInProgress.current = false;
   }
-
-  useEffect(() => { void requestLocation(); }, []);
 
   function selectDistance(km: number | undefined) {
     setDistanceKm(km);
@@ -123,7 +132,7 @@ export default function SearchScreen() {
       <Text size={11} color={colors.muted} style={{ marginTop: 5, lineHeight: 16 }}>
         {locationStatus === 'requesting' ? 'Getting your location…' : locationStatus === 'current' ? 'Distances use your current location. Places without coordinates are left out.' : locationStatus === 'denied' ? 'Location permission was denied. Distances use Sydney CBD; you can allow location in your browser or device settings.' : locationStatus === 'unavailable' ? 'Could not get your location. Distances use Sydney CBD.' : 'Choosing a distance asks to use your location. If unavailable, distances use Sydney CBD.'}
       </Text>
-      {locationStatus === 'denied' || locationStatus === 'unavailable' ? <Button title="Try location again" variant="ghost" size="small" onPress={() => void requestLocation()} style={{ alignSelf: 'flex-start' }}/> : null}
+      {locationStatus !== 'current' && locationStatus !== 'requesting' ? <Button title={locationStatus === 'default' ? 'Use my location' : 'Try location again'} variant="ghost" size="small" onPress={() => void requestLocation()} style={{ alignSelf: 'flex-start' }}/> : null}
     </View> : null}
 
     {(query.trim() || activeFilterCount > 0 || sort !== 'recommended') ? <View style={styles.activeFilters}>

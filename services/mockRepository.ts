@@ -3,6 +3,7 @@ import type { PersonalListEntry, Place, Review, User } from '../types/models';
 import type { CreateReview, FoodRepository, Friendship, UpdateReview } from './repositories';
 import { applyPlaceScores } from './placeScoring';
 import { rankListEntries, reviewRankingCandidate } from '../features/myList';
+import { getPodiumChanges } from '../features/podium';
 import { normalizeRating } from '../features/ratings';
 import { queryBatches, FRIEND_REVIEW_BATCH_LIMIT } from './queryBatches';
 
@@ -15,7 +16,11 @@ let liveUsers = [...users];
 const liveFriendships = new Map<string, Friendship>();
 const projectedLists = new Map<string, PersonalListEntry[]>();
 function friendshipId(userA:string,userB:string) { return [userA,userB].sort().join('_'); }
-function rebuildUserList(userId:string) { projectedLists.set(userId,rankListEntries(liveReviews.filter(review=>review.userId===userId).map(reviewRankingCandidate))); }
+function rebuildUserList(userId:string) {
+ const ranked=rankListEntries(liveReviews.filter(review=>review.userId===userId).map(reviewRankingCandidate));
+ projectedLists.set(userId,ranked);
+ return ranked;
+}
 rebuildUserList('u1');
 const aggregate = (place: Place): Place => applyPlaceScores([place],liveReviews)[0];
 export const mockRepository: FoodRepository & { getReviewsWithUsers(placeId?: string): Promise<(Review & {user:User})[]>; getReviewsByUserWithPlace(userId:string): Promise<(Review & {user:User;place:Place})[]> } = {
@@ -31,8 +36,12 @@ export const mockRepository: FoodRepository & { getReviewsWithUsers(placeId?: st
  async getReviewsByUser(userId) { return liveReviews.filter(review=>review.userId===userId); },
  async getMyList(userId) { return [...(projectedLists.get(userId)??[])].sort((a,b)=>a.rank-b.rank); },
  async rebuildMyListFromReviews(userId) { rebuildUserList(userId); },
- async createReview(input:CreateReview) { if(liveReviews.some(review=>review.userId==='u1'&&review.placeId===input.placeId))throw new Error('You have already left a review for this place.');const now=new Date();const review:Review={...input,rating:normalizeRating(input.rating),userId:'u1',id:`u1_${input.placeId}`,date:'Just now',createdAt:now,updatedAt:now};liveReviews=[review,...liveReviews];rebuildUserList('u1');return review; },
- async updateReview(reviewId:string,input:UpdateReview) { const prior=liveReviews.find(review=>review.id===reviewId&&review.userId==='u1');if(!prior)throw new Error('This review could not be found.');const updated:Review={...prior,...(input.photo!==undefined?{photo:input.photo??undefined}:{}),rating:normalizeRating(input.rating),text:input.text,...(input.subRatings!==undefined?{subRatings:input.subRatings}:{}),updatedAt:new Date()};liveReviews=liveReviews.map(review=>review.id===reviewId?updated:review);rebuildUserList('u1');return updated; },
+ async createReview(input:CreateReview) { if(liveReviews.some(review=>review.userId==='u1'&&review.placeId===input.placeId))throw new Error('You have already left a review for this place.');const now=new Date();const review:Review={...input,rating:normalizeRating(input.rating),userId:'u1',id:`u1_${input.placeId}`,date:'Just now',createdAt:now,updatedAt:now};const before=projectedLists.get('u1')??[];
+  liveReviews=[review,...liveReviews];
+  return {...review,podiumChanges:getPodiumChanges(before,rebuildUserList('u1'))}; },
+ async updateReview(reviewId:string,input:UpdateReview) { const prior=liveReviews.find(review=>review.id===reviewId&&review.userId==='u1');if(!prior)throw new Error('This review could not be found.');const updated:Review={...prior,...(input.photo!==undefined?{photo:input.photo??undefined}:{}),rating:normalizeRating(input.rating),text:input.text,...(input.subRatings!==undefined?{subRatings:input.subRatings}:{}),updatedAt:new Date()};const before=projectedLists.get('u1')??[];
+  liveReviews=liveReviews.map(review=>review.id===reviewId?updated:review);
+  return {...updated,podiumChanges:getPodiumChanges(before,rebuildUserList('u1'))}; },
  async deleteReview(reviewId:string,userId:string) { if(userId!=='u1')throw new Error('You can only delete your own reviews.');const existing=liveReviews.some(review=>review.id===reviewId&&review.userId===userId);if(!existing)throw new Error('This review could not be found.');liveReviews=liveReviews.filter(review=>review.id!==reviewId);rebuildUserList(userId); },
  async getUser(userId) { return liveUsers.find(user=>user.id===userId)??users[0]; },
  async ensureUserProfile() {},

@@ -58,7 +58,10 @@ export default function ListScreen() {
     <View style={styles.ledger}>
         <View style={styles.ledgerHeader}><Text size={10} weight="600" color={colors.textSecondary} style={styles.mono}>MY LIST</Text><View style={styles.profileDot}><Ionicons name="person" size={12} color={colors.onAccent}/></View></View>
         <View style={styles.listIntro}><Text size={10} color={colors.textMuted} style={styles.mono}>YOUR PLACES</Text><View style={styles.count}><Text size={31} color={colors.textPrimary} style={styles.serif}>{items.length}</Text><Text size={10} color={colors.textMuted}> {items.length === 1 ? 'spot' : 'spots'}</Text></View></View>
-        {signedIn ? <Button title="Combined List" icon="people-outline" variant="secondary" size="small" onPress={()=>router.push('/combined-list')} style={{alignSelf:'flex-start',marginBottom:14}}/> : null}
+        {signedIn ? <View style={styles.listActions}>
+          <Button title="Combined List" icon="people-outline" variant="secondary" size="small" onPress={() => router.push('/combined-list')} />
+          <Button title="Tasting Passport" icon="compass-outline" variant="secondary" size="small" onPress={() => router.push('/tasting-passport')} />
+        </View> : null}
         {signedIn && !loading && !error && items.length ? <>
           <ListFilterControls items={items} filters={filters} onChange={setFilters} placeholder="Search your restaurants"/>
           <Text size={11} color={colors.textMuted} style={{paddingBottom:14}}>{filtered.length} of {items.length} places · Original List ranks</Text>
@@ -77,6 +80,7 @@ export default function ListScreen() {
 
 const makeStyles = () => StyleSheet.create({
   ledger: { width: '100%', maxWidth: 920, alignSelf: 'center', paddingHorizontal: 24, paddingTop: 22, paddingBottom: 18, backgroundColor: colors.surfaceElevated, borderWidth: 1, borderColor: colors.border },
+  listActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 14 },
   ledgerHeader: { minHeight: 38, flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', borderBottomWidth: 1, borderBottomColor: colors.border, paddingBottom: 14 },
   mono: { fontFamily: typefaces.mono, letterSpacing: 1 },
   profileDot: { width: 24, height: 24, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.accent },

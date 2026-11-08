@@ -17,6 +17,12 @@ The start scripts use Expo's offline mode so Metro can start when Expo's package
 
 Copy `.env.example` to `.env` if you want to configure external services. Expo public environment values are included in client bundles; restrict API keys to the required APIs and app origins/identifiers. Restart Expo after changing environment values.
 
+## Tasting Passport and podium
+
+Open **List → Tasting Passport** to track cuisine stamps, milestones, and a weekly goal of reviewing two new restaurants. Choose a cuisine stamp to explore matching places. Progress comes from your saved reviews, and the weekly challenge starts on Monday in your device’s time zone.
+
+When a saved review changes the top three of a List with at least ten places, the review screen celebrates each changed spot. Reduced-motion settings replace the animations with static medals.
+
 ## Browser tests
 
 ```sh

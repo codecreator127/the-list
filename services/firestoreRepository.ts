@@ -5,6 +5,7 @@ import { firestore } from './firebase';
 import { firebaseAuth } from './auth';
 import type { CreateReview, FoodRepository, Friendship, UpdateReview, UserProfileInput } from './repositories';
 import { rankListEntries, reviewRankingCandidate } from '../features/myList';
+import { getPodiumChanges } from '../features/podium';
 import { normalizeRating, normalizeStoredRating } from '../features/ratings';
 
 const db = () => { if (!firestore) throw new Error('Firebase is not configured.'); return firestore; };
@@ -27,6 +28,7 @@ function persistListProjection(transaction: any, userId: string, listSnapshot: a
  const ranked=projectReviews(reviews);const retained=new Set(ranked.map(entry=>entry.placeId));
  for(const entry of ranked)transaction.set(doc(db(),'users',userId,'list',entry.placeId),{...entry,ratingScale:5,updatedAt:entry.placeId===changedPlace?.placeId?changedPlace.updatedAt:entry.updatedAt});
  for(const row of listSnapshot.docs)if(!retained.has(row.id))transaction.delete(row.ref);
+ return ranked;
 }
 function reviewQueryForUser(userId: string) { return query(reviewsCollection(),where('userId','==',userId)); }
 async function readProjectionInputs(transaction: any, userId: string) {
@@ -37,6 +39,13 @@ async function readProjectionInputs(transaction: any, userId: string) {
  const [reviewSnapshot,listSnapshot]=await Promise.all([getDocs(reviewQueryForUser(userId)),getDocs(userListCollection(userId))]);
  const [reviewDocs,listDocs]=await Promise.all([Promise.all(reviewSnapshot.docs.map((row:any)=>transaction.get(row.ref))),Promise.all(listSnapshot.docs.map((row:any)=>transaction.get(row.ref)))]);
  return {lockRef,lockSnapshot,reviewSnapshot:{docs:reviewDocs.filter((row:any)=>row.exists())},listSnapshot:{docs:listDocs.filter((row:any)=>row.exists())}};
+}
+function previousListRanking(inputs: Awaited<ReturnType<typeof readProjectionInputs>>, reviews: Review[]) {
+ if (inputs.lockSnapshot.data()?.initialized !== true || !inputs.listSnapshot.docs.length) return projectReviews(reviews);
+ return inputs.listSnapshot.docs.map((row:any) => {
+  const { placeId, rank } = row.data();
+  return { placeId, rank };
+ });
 }
 function advanceListRevision(transaction: any, inputs: any) {
  transaction.set(inputs.lockRef,{revision:(inputs.lockSnapshot.data()?.revision??0)+1,initialized:true,updatedAt:serverTimestamp()});
@@ -86,28 +95,32 @@ export const firestoreRepository: FoodRepository = {
  async rebuildMyListFromReviews(userId) { await runTransaction(db(),async transaction=>{const inputs=await readProjectionInputs(transaction,userId);const reviews=inputs.reviewSnapshot.docs.map((row:any)=>fromReview(row.id,row.data()));persistListProjection(transaction,userId,inputs.listSnapshot,reviews);advanceListRevision(transaction,inputs);}); },
  async createReview(input:CreateReview) {
   const currentUser=firebaseAuth?.currentUser;if(!currentUser)throw new Error('Sign in before sharing a review.');
-  const userId=currentUser.uid;const reference=doc(db(),'reviews',`${userId}_${input.placeId}`);let created!:Review;
-  await runTransaction(db(),async transaction=>{
+  const userId=currentUser.uid;const reference=doc(db(),'reviews',`${userId}_${input.placeId}`);
+  return runTransaction(db(),async transaction=>{
    const inputs=await readProjectionInputs(transaction,userId);const [prior,placeSnapshot]=await Promise.all([transaction.get(reference),transaction.get(doc(db(),'places',input.placeId))]);
    if(prior.exists()||inputs.reviewSnapshot.docs.some((row:any)=>row.data().placeId===input.placeId))throw new Error('You have already left a review for this place.');
    if(!placeSnapshot.exists())throw new Error('This place is not saved yet. Reopen it from search and try again.');
-   const rating=normalizeRating(input.rating);const now=serverTimestamp();const nowDate=new Date();created={id:reference.id,placeId:input.placeId,userId,rating,...(input.subRatings?{subRatings:input.subRatings}:{}),text:input.text,...(input.photo?{photo:input.photo}:{}),date:'Just now',createdAt:nowDate,updatedAt:nowDate};
+   const rating=normalizeRating(input.rating);const now=serverTimestamp();const nowDate=new Date();const created:Review={id:reference.id,placeId:input.placeId,userId,rating,...(input.subRatings?{subRatings:input.subRatings}:{}),text:input.text,...(input.photo?{photo:input.photo}:{}),date:'Just now',createdAt:nowDate,updatedAt:nowDate};
    transaction.set(reference,{placeId:input.placeId,userId,rating,ratingScale:5,...(input.subRatings?{subRatings:input.subRatings}:{}),text:input.text,...(input.photo?{photo:input.photo}:{}),createdAt:now,updatedAt:now});
-   const reviews=inputs.reviewSnapshot.docs.map((row:any)=>fromReview(row.id,row.data()));persistListProjection(transaction,userId,inputs.listSnapshot,[...reviews,created],{placeId:input.placeId,updatedAt:now});advanceListRevision(transaction,inputs);
+   const reviews=inputs.reviewSnapshot.docs.map((row:any)=>fromReview(row.id,row.data()));
+   const ranked=persistListProjection(transaction,userId,inputs.listSnapshot,[...reviews,created],{placeId:input.placeId,updatedAt:now});
+   advanceListRevision(transaction,inputs);
+   return {...created,podiumChanges:getPodiumChanges(previousListRanking(inputs,reviews),ranked)};
   });
-  return created;
  },
  async updateReview(reviewId:string,input:UpdateReview) {
-  const currentUser=firebaseAuth?.currentUser;if(!currentUser)throw new Error('Sign in before updating a review.');const userId=currentUser.uid;const reference=doc(db(),'reviews',reviewId);let updated!:Review;
-  await runTransaction(db(),async transaction=>{
+  const currentUser=firebaseAuth?.currentUser;if(!currentUser)throw new Error('Sign in before updating a review.');const userId=currentUser.uid;const reference=doc(db(),'reviews',reviewId);
+  return runTransaction(db(),async transaction=>{
    const inputs=await readProjectionInputs(transaction,userId);const prior=await transaction.get(reference);
    if(!prior.exists()||prior.data().userId!==userId)throw new Error('This review could not be found.');
    const before=fromReview(prior.id,prior.data());const now=serverTimestamp();const nowDate=new Date();
-   const rating=normalizeRating(input.rating);updated={...before,rating,text:input.text,...(input.photo!==undefined?{photo:input.photo??undefined}:{}),...(input.subRatings!==undefined?{subRatings:input.subRatings}:{}),date:nowDate.toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'numeric'}),updatedAt:nowDate};
+   const rating=normalizeRating(input.rating);const updated:Review={...before,rating,text:input.text,...(input.photo!==undefined?{photo:input.photo??undefined}:{}),...(input.subRatings!==undefined?{subRatings:input.subRatings}:{}),date:nowDate.toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'numeric'}),updatedAt:nowDate};
    transaction.update(reference,{rating,ratingScale:5,text:input.text,...(input.photo!==undefined?{photo:input.photo??deleteField()}:{}),...(input.subRatings!==undefined?{subRatings:input.subRatings}:{}),updatedAt:now});
-   const reviews=inputs.reviewSnapshot.docs.map((row:any)=>row.id===reviewId?updated:fromReview(row.id,row.data()));persistListProjection(transaction,userId,inputs.listSnapshot,reviews,{placeId:before.placeId,updatedAt:now});advanceListRevision(transaction,inputs);
+   const reviews:Review[]=inputs.reviewSnapshot.docs.map((row:any)=>fromReview(row.id,row.data()));
+   const ranked=persistListProjection(transaction,userId,inputs.listSnapshot,reviews.map(review=>review.id===reviewId?updated:review),{placeId:before.placeId,updatedAt:now});
+   advanceListRevision(transaction,inputs);
+   return {...updated,podiumChanges:getPodiumChanges(previousListRanking(inputs,reviews),ranked)};
   });
-  return updated;
  },
  async deleteReview(reviewId:string,userId:string) {
   const currentUser=firebaseAuth?.currentUser;if(!currentUser||currentUser.uid!==userId)throw new Error('You can only delete your own reviews.');const reference=doc(db(),'reviews',reviewId);

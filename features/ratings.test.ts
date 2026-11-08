@@ -1,3 +1,4 @@
+import { getPodiumChanges } from './podium';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { ListRankingCandidate } from './myList';
@@ -154,4 +155,19 @@ test('creating, editing, and deleting a review keeps the persisted mock List pro
 
   await mockRepository.deleteReview(created.id, 'u1');
   assert.equal((await mockRepository.getMyList('u1')).some(row => row.placeId === place.id), false);
+});
+
+test('detects each new podium occupant only after the List reaches ten places', () => {
+  const ranking = (ids: number[]) => ids.map((id, index) => ({ placeId: String(id), rank: index + 1 }));
+  const before = ranking([1, 2, 3, 4, 5, 6, 7, 8, 9]);
+  assert.deepEqual(getPodiumChanges(before, ranking([9, 1, 2, 3, 4, 5, 6, 7, 8])), []);
+  assert.deepEqual(getPodiumChanges(before, ranking([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])), []);
+  assert.deepEqual(getPodiumChanges(before, ranking([10, 1, 2, 3, 4, 5, 6, 7, 8, 9])), [
+    { rank: 1, placeId: '10' }, { rank: 2, placeId: '1' }, { rank: 3, placeId: '2' },
+  ]);
+  const ten = ranking([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+  assert.deepEqual(getPodiumChanges(ten, ranking([1, 4, 2, 3, 5, 6, 7, 8, 9, 10])), [
+    { rank: 2, placeId: '4' }, { rank: 3, placeId: '2' },
+  ]);
+  assert.deepEqual(getPodiumChanges(ten, ranking([1, 2, 4, 3, 5, 6, 7, 8, 9, 10])), [{ rank: 3, placeId: '4' }]);
 });

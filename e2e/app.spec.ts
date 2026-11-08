@@ -98,3 +98,13 @@ test('adjusts the overall rating with the keyboard', async ({ page }) => {
   await slider.press('Home');
   await expect(slider).toHaveAttribute('aria-valuenow', '0');
 });
+
+test('keeps the default search area until the user opts into device location', async ({ page, context }) => {
+  await context.grantPermissions(['geolocation']);
+  await context.setGeolocation({ latitude: -33.8688, longitude: 151.2093 });
+  await page.goto('/search', { waitUntil: 'domcontentloaded' });
+  await page.getByRole('button', { name: 'Toggle filters' }).click();
+  await expect(page.getByText('Distance from Sydney CBD', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Use my location', exact: true }).click();
+  await expect(page.getByText('Distance from your location', { exact: true })).toBeVisible();
+});
