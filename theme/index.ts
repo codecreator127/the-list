@@ -1,4 +1,5 @@
 import { createContext, useContext } from 'react';
+import { Platform } from 'react-native';
 
 type SemanticPalette = {
 	background: string;
@@ -115,7 +116,7 @@ export const controls = {
 	medium: { minHeight: 48, paddingHorizontal: 18, paddingVertical: 12, fontSize: 14, iconSize: 18 },
 	large: { minHeight: 54, paddingHorizontal: 22, paddingVertical: 14, fontSize: 15, iconSize: 19 },
 } as const;
-export const typefaces = {
+const bundledTypefaces = {
 	sansRegular: 'DMSans_400Regular',
 	sansMedium: 'DMSans_500Medium',
 	sansSemibold: 'DMSans_600SemiBold',
@@ -125,6 +126,27 @@ export const typefaces = {
 	mono: 'DMMono_400Regular',
 	monoMedium: 'DMMono_500Medium',
 } as const;
+
+const systemSans = Platform.select({ android: 'sans-serif', ios: 'System', default: 'system-ui' });
+const systemSerif = Platform.select({ ios: 'Georgia', default: 'serif' });
+const systemMono = Platform.select({ ios: 'Menlo', default: 'monospace' });
+type Typefaces = Record<keyof typeof bundledTypefaces, string>;
+const systemTypefaces: Typefaces = {
+  sansRegular: systemSans,
+  sansMedium: systemSans,
+  sansSemibold: systemSans,
+  sansBold: systemSans,
+  serif: systemSerif,
+  serifItalic: systemSerif,
+  mono: systemMono,
+  monoMedium: systemMono,
+};
+let activeTypefaces: Typefaces = systemTypefaces;
+export function setBundledTypefacesReady(ready: boolean) {
+  activeTypefaces = ready ? bundledTypefaces : systemTypefaces;
+}
+export const typefaces = new Proxy({} as Typefaces, { get: (_target, key: keyof Typefaces) => activeTypefaces[key] });
+
 export const shadow = new Proxy({ shadowColor: '', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.12, shadowRadius: 16, elevation: 2 }, {
 	get: (target, key: string | symbol) => key === 'shadowColor' ? activePalette.shadow : Reflect.get(target, key),
 });

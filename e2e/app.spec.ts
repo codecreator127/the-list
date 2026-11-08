@@ -108,3 +108,10 @@ test('keeps the default search area until the user opts into device location', a
   await page.getByRole('button', { name: 'Use my location', exact: true }).click();
   await expect(page.getByText('Distance from your location', { exact: true })).toBeVisible();
 });
+
+test('opens the List when bundled typefaces cannot load', async ({ page }) => {
+  await page.route(/\.(ttf|woff2?)(\?|$)/i, route => route.abort());
+  await page.goto('/list', { waitUntil: 'domcontentloaded' });
+  await expect(page.getByText('YOUR PLACES', { exact: true })).toHaveCSS('font-family', /^monospace(?:,|$)/);
+  await expect(page.getByRole('button', { name: 'Tasting Passport', exact: true })).toBeVisible();
+});

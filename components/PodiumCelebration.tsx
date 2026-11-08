@@ -73,7 +73,7 @@ export function PodiumCelebration({ changes, onClose }: { changes: NamedChange[]
     <View style={[styles.backdrop, { backgroundColor: colors.scrim }]} accessibilityViewIsModal>
       <View style={[styles.card, { backgroundColor: colors.surfaceElevated, borderColor: colors.border }]}>
         <ScrollView bounces={false} contentContainerStyle={styles.content}>
-          <Text size={11} weight="700" color={colors.accent} style={styles.eyebrow}>THE LIST PODIUM</Text>
+          <Text size={11} weight="700" color={colors.accent} style={[styles.eyebrow, { fontFamily: typefaces.mono }]}>THE LIST PODIUM</Text>
           <View accessibilityRole="header"><Text size={30} weight="700" style={styles.title}>Your podium changed</Text></View>
           <Text size={14} color={colors.textSecondary} style={styles.description}>Your saved review shook up the top of your List.</Text>
           <View style={styles.rows}>
@@ -96,7 +96,7 @@ const styles = StyleSheet.create({
   backdrop: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 18 },
   card: { width: '100%', maxWidth: 430, maxHeight: '100%', borderWidth: 1, borderRadius: radius.md },
   content: { padding: 20 },
-  eyebrow: { fontFamily: typefaces.mono, letterSpacing: 1.5 },
+  eyebrow: { letterSpacing: 1.5 },
   title: { marginTop: 7 },
   description: { marginTop: 5, lineHeight: 20 },
   rows: { marginTop: 16, marginBottom: 18, gap: 8 },

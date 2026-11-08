@@ -18,8 +18,6 @@ const steps = [
 	{ number: '03', title: 'Rank', body: 'Watch your personal List take shape.', icon: 'arrow-up-outline' as const },
 ];
 
-const serif = typefaces.serif;
-
 export default function Welcome() {
 	useTheme();
 	const { width } = useWindowDimensions();
@@ -106,8 +104,8 @@ const makeStyles = () => StyleSheet.create({
 	heroCopyCompact: { paddingBottom: 0 },
 	eyebrow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
 	eyebrowLine: { width: 21, height: 1, backgroundColor: colors.accent },
-	heroTitle: { marginTop: 25, marginBottom: 24, fontFamily: serif, letterSpacing: -1.2 },
-	serif: { fontFamily: serif },
+	heroTitle: { marginTop: 25, marginBottom: 24, fontFamily: typefaces.serif, letterSpacing: -1.2 },
+	serif: { fontFamily: typefaces.serif },
 	serifItalic: { fontFamily: typefaces.serifItalic },
 	heroDescription: { maxWidth: 360, lineHeight: 25 },
 	heroActions: { flexDirection: 'row', alignItems: 'center', gap: 26, marginTop: 32 },
@@ -142,7 +140,7 @@ const makeStyles = () => StyleSheet.create({
 	floatingNoteCompact: { bottom: 13, right: -1 },
 	pulseDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: colors.accent, marginTop: 4 },
 	introBand: { width: '100%', alignItems: 'center', backgroundColor: colors.surface, paddingHorizontal: 20, paddingVertical: 96 },
-	introTitle: { marginTop: 22, textAlign: 'center', fontFamily: serif, letterSpacing: -0.6 },
+	introTitle: { marginTop: 22, textAlign: 'center', fontFamily: typefaces.serif, letterSpacing: -0.6 },
 	section: { width: '100%', maxWidth: 1320, paddingHorizontal: 64, paddingTop: 92, paddingBottom: 100 },
 	sectionCompact: { paddingHorizontal: 22, paddingTop: 70, paddingBottom: 76 },
 	sectionLabel: { flexDirection: 'row', justifyContent: 'space-between', borderBottomWidth: 1, borderBottomColor: colors.border, paddingBottom: 14 },
@@ -156,7 +154,7 @@ const makeStyles = () => StyleSheet.create({
 	snapshot: { width: '100%', flexDirection: 'row', alignItems: 'center', gap: 70, paddingHorizontal: 64, paddingVertical: 90, backgroundColor: colors.surface },
 	snapshotCompact: { flexDirection: 'column', alignItems: 'stretch', gap: 38, paddingHorizontal: 22, paddingVertical: 70 },
 	snapshotCopy: { flex: 0.8 },
-	snapshotTitle: { fontFamily: serif, marginTop: 25, marginBottom: 22, letterSpacing: -0.7 },
+	snapshotTitle: { fontFamily: typefaces.serif, marginTop: 25, marginBottom: 22, letterSpacing: -0.7 },
 	snapshotBody: { maxWidth: 400, lineHeight: 23, marginBottom: 24 },
 	snapshotImageWrap: { flex: 1.2, position: 'relative' },
 	snapshotImage: { width: '100%', height: 470, backgroundColor: colors.surfaceStrong },
@@ -165,7 +163,7 @@ const makeStyles = () => StyleSheet.create({
 	socialSection: { width: '100%', maxWidth: 1320, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 60, paddingHorizontal: 64, paddingVertical: 110 },
 	socialSectionCompact: { flexDirection: 'column', alignItems: 'stretch', gap: 32, paddingHorizontal: 22, paddingVertical: 78 },
 	socialHeading: { flex: 1 },
-	socialTitle: { fontFamily: serif, marginTop: 25, letterSpacing: -0.8 },
+	socialTitle: { fontFamily: typefaces.serif, marginTop: 25, letterSpacing: -0.8 },
 	socialCard: { flex: 1, minHeight: 390, backgroundColor: colors.surfaceStrong, padding: 28, position: 'relative', overflow: 'hidden' },
 	convergeCard: { position: 'absolute', minWidth: 220, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 15, paddingVertical: 13, backgroundColor: colors.background, borderWidth: 1, borderColor: colors.border },
 	convergeOne: { top: 43, left: 27, transform: [{ rotate: '-5deg' }] },
@@ -173,7 +171,7 @@ const makeStyles = () => StyleSheet.create({
 	convergeThree: { bottom: 88, left: 53, backgroundColor: colors.textPrimary, transform: [{ rotate: '-2deg' }] },
 	socialCaption: { position: 'absolute', right: 22, bottom: 17, textAlign: 'right', lineHeight: 18 },
 	finalCta: { width: '100%', alignItems: 'center', backgroundColor: colors.accent, paddingHorizontal: 20, paddingVertical: 96 },
-	finalTitle: { marginTop: 24, marginBottom: 34, textAlign: 'center', fontFamily: serif, letterSpacing: -0.8 },
+	finalTitle: { marginTop: 24, marginBottom: 34, textAlign: 'center', fontFamily: typefaces.serif, letterSpacing: -0.8 },
 	finalButton: { minWidth: 170 },
 	footer: { width: '100%', maxWidth: 1320, minHeight: 145, paddingHorizontal: 64, paddingVertical: 40, flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between' },
 	footerCompact: { minHeight: 0, paddingHorizontal: 22, paddingVertical: 36, flexWrap: 'wrap', alignItems: 'center', gap: 26 },
