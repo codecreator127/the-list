@@ -2,42 +2,73 @@ import { Platform } from 'react-native';
 import type { ImagePickerAsset } from 'expo-image-picker';
 import { firebaseAuth } from './auth';
 
-const maxProfilePhotoSize = 4 * 1024 * 1024;
+const maxPhotoSize = 4 * 1024 * 1024;
 
 function endpoint(kind: 'profile' | 'review') {
-  const base = process.env.EXPO_PUBLIC_UPLOAD_API_URL?.replace(/\/$/, '') ?? '';
+  const configured = process.env.EXPO_PUBLIC_UPLOAD_API_URL?.replace(/\/$/, '') ?? '';
+  const base = Platform.OS === 'web' && !__DEV__ && !configured.startsWith('https://') ? '' : configured;
   if (!base && Platform.OS !== 'web') throw new Error('Photo uploads need EXPO_PUBLIC_UPLOAD_API_URL configured.');
   if (base && !base.startsWith('https://') && !__DEV__) throw new Error('Photo uploads require a secure server URL.');
   return `${base}/api/${kind}-photo`;
 }
 
-async function photoRequest(method: 'POST' | 'DELETE', body: Blob | string, contentType: string, kind: 'profile' | 'review' = 'profile') {
+async function photoHeaders(contentType: string, expectedUserId?: string) {
   const user = firebaseAuth?.currentUser;
-  if (!user) throw new Error('Sign in again before uploading a photo.');
-  const response = await fetch(endpoint(kind), {
-    method, body, headers: { Authorization: `Bearer ${await user.getIdToken()}`, 'Content-Type': contentType },
-  });
+  if (!user || (expectedUserId && user.uid !== expectedUserId)) throw new Error('Sign in again before uploading a photo.');
+  const token = await user.getIdToken();
+  if (firebaseAuth?.currentUser?.uid !== user.uid) throw new Error('Sign in again before uploading a photo.');
+  return { Authorization: 'Bearer ' + token, 'Content-Type': contentType };
+}
+
+function photoResponse(status: number, body: string) {
   let result;
-  try { result = await response.json(); }
-  catch { throw new Error('Photo uploads are unavailable. Check that the upload server is deployed.'); }
-  if (!response.ok) throw new Error(result.error ?? 'Could not upload your photo.');
+  try { result = JSON.parse(body); }
+  catch { throw new Error('Photo uploads are unavailable. Check that the upload server is running.'); }
+  if (status < 200 || status >= 300) throw new Error(result?.error ?? 'Could not save your photo. Please try again.');
   return result;
+}
+
+async function photoRequest(method: 'POST' | 'DELETE', body: Blob | string, contentType: string, kind: 'profile' | 'review' = 'profile', expectedUserId?: string) {
+  const url = endpoint(kind);
+  const headers = await photoHeaders(contentType, expectedUserId);
+  const response = await fetch(url, { method, body, headers }).catch(() => {
+    throw new Error('Could not reach the photo server. Check your connection and try again.');
+  });
+  return photoResponse(response.status, await response.text());
 }
 
 async function uploadPhoto(userId: string, asset: ImagePickerAsset, kind: 'profile' | 'review'): Promise<{ path: string; url: string }> {
   if (firebaseAuth?.currentUser?.uid !== userId) throw new Error('Sign in again before uploading a photo.');
-  if ((asset.file?.size ?? asset.fileSize ?? 0) > maxProfilePhotoSize) throw new Error('Choose a photo smaller than 4 MB.');
-  const contentType = asset.mimeType ?? asset.file?.type ?? 'image/jpeg';
-  if (!['image/jpeg', 'image/png', 'image/webp'].includes(contentType)) throw new Error('Choose a JPEG, PNG, or WebP image.');
-  let file: Blob;
-  if (asset.file) file = asset.file;
-  else {
-    const response = await fetch(asset.uri);
-    if (!response.ok) throw new Error('Could not read the selected image.');
-    file = await response.blob();
+  if ((asset.file?.size ?? asset.fileSize ?? 0) > maxPhotoSize) throw new Error('Choose a photo smaller than 4 MB.');
+  const reportedType = (asset.file?.type || asset.mimeType || 'application/octet-stream').toLowerCase();
+  const contentType = reportedType === 'image/jpg' ? 'image/jpeg' : reportedType;
+  if (!['image/jpeg', 'image/png', 'image/webp', 'application/octet-stream'].includes(contentType)) throw new Error('Choose a JPEG, PNG, or WebP image.');
+
+  let result;
+  if (Platform.OS === 'web') {
+    let file: Blob;
+    if (asset.file) file = asset.file;
+    else {
+      const response = await fetch(asset.uri);
+      if (!response.ok) throw new Error('Could not read the selected image.');
+      file = await response.blob();
+    }
+    if (file.size > maxPhotoSize) throw new Error('Choose a photo smaller than 4 MB.');
+    result = await photoRequest('POST', file, contentType, kind, userId);
+  } else {
+    const { getInfoAsync, uploadAsync, FileSystemUploadType } = require('expo-file-system') as typeof import('expo-file-system');
+    const info = await getInfoAsync(asset.uri);
+    if (!info.exists || info.isDirectory) throw new Error('Could not read the selected image.');
+    if (info.size > maxPhotoSize) throw new Error('Choose a photo smaller than 4 MB.');
+    const url = endpoint(kind);
+    const headers = await photoHeaders(contentType, userId);
+    const response = await uploadAsync(url, asset.uri, {
+      httpMethod: 'POST', uploadType: FileSystemUploadType.BINARY_CONTENT, headers,
+    }).catch(() => { throw new Error('Could not upload the selected image. Check your connection and try again.'); });
+    result = photoResponse(response.status, response.body);
   }
-  if (file.size > maxProfilePhotoSize) throw new Error('Choose a photo smaller than 4 MB.');
-  return photoRequest('POST', file, contentType, kind);
+  if (typeof result?.path !== 'string' || typeof result?.url !== 'string') throw new Error('The photo server did not return an image. Please try again.');
+  return { path: result.path, url: result.url };
 }
 
 export const uploadProfilePhoto = (userId: string, asset: ImagePickerAsset) => uploadPhoto(userId, asset, 'profile');

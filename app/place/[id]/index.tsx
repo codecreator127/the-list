@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import { Image, Linking, Pressable, StyleSheet, View } from 'react-native';
@@ -26,16 +26,30 @@ export default function PlaceScreen() {
   const [loading, setLoading] = useState(true);
   const [retry, setRetry] = useState(0);
   const [error, setError] = useState('');
+  const loadedPlace = useRef<{ place: Place; userId: string }>();
 
   useFocusEffect(useCallback(() => {
     let active = true;
     setError('');
-    setLoading(true);
-    setFriendReviews([]);
     setCombined(undefined);
     let ids:string[]|undefined;
     try { ids=parseCombinedParticipants(combinedUsers); }
     catch(cause){setError(cause instanceof Error?cause.message:'Invalid participants.');setLoading(false);return;}
+    const userId = isFirebaseRepositoryEnabled ? firebaseAuth?.currentUser?.uid ?? '' : 'u1';
+    const saved = foodService.takeSavedReview(id);
+    const previousPlace = loadedPlace.current;
+    const knownPlace = (previousPlace?.place.id === id && previousPlace.userId === userId ? previousPlace.place : undefined) ?? saved?.place;
+    const canShowDetails = !!knownPlace && !ids;
+    setLoading(!canShowDetails);
+    if (!canShowDetails) setFriendReviews([]);
+    if (canShowDetails) {
+      setPlace(knownPlace);
+      if (saved) {
+        setMyReview(saved.review);
+        const user = saved.author ?? { id: userId, name: 'You', handle: '', initials: 'Y', color: colors.accent };
+        setReviews(rows => [{ ...saved.review, user }, ...rows.filter(row => row.placeId === id && row.userId !== userId)]);
+      }
+    }
     let lastFriendIds:string|undefined;
     const stopFriendships=ids?foodService.watchMyFriendships(rows=>{
       if(!active)return;
@@ -44,9 +58,10 @@ export default function PlaceScreen() {
       if(lastFriendIds!==undefined && signature!==lastFriendIds){setCombined(undefined);setLoading(true);setRetry(value=>value+1);}
       lastFriendIds=signature;
     },()=>{if(active){setCombined(undefined);setError('Could not verify Combined List access. Return to your List and try again.');}}):()=>{};
-    foodService.getRestaurantDetails(id,ids)
+    foodService.getRestaurantDetails(id,ids,knownPlace)
       .then(({place: found, reviews: rows, myReview: ownReview, friendReviews: friends, friendAverage: average,combined:combinedResult}) => {
         if (!active) return;
+        loadedPlace.current = found ? { place: found, userId } : undefined;
         setPlace(found);
         setReviews(rows);
         setMyReview(ownReview);
@@ -57,7 +72,7 @@ export default function PlaceScreen() {
         if (!found) setError('This place could not be found.');
       })
       .catch(cause => {
-        if (active) { setError(cause instanceof Error ? cause.message : 'Could not load this place.'); setLoading(false); }
+        if (active && !canShowDetails) { setError(cause instanceof Error ? cause.message : 'Could not load this place.'); setLoading(false); }
       });
     return () => { active = false;stopFriendships(); };
   }, [id, retry, combinedUsers]));

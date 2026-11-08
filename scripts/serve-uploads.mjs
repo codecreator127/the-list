@@ -4,6 +4,10 @@ import handler from '../api/profile-photo.mjs';
 import reviewHandler from '../api/review-photo.mjs';
 
 const port = Number(process.env.UPLOAD_API_PORT ?? 4177);
+// The local API accepts the default Expo web origin and explicit development origins.
+process.env.CLOUDINARY_BROWSER_ORIGINS = [
+  'http://localhost:8081', 'http://127.0.0.1:8081', process.env.CLOUDINARY_BROWSER_ORIGINS,
+].filter(Boolean).join(',');
 createServer((req,res) => {
   const pathname = new URL(req.url,'http://localhost').pathname;
   if (!['/api/profile-photo','/api/review-photo'].includes(pathname)) {

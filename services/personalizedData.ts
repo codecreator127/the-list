@@ -16,16 +16,17 @@ const fallbackUser = (id: string): User => ({ id, name: 'List member', handle: '
 /** Request-scoped joins: no per-review profile reads or persistent social caches. */
 export function createPersonalizedData(repository: FoodRepository, refreshPlace: (place: Place) => Promise<Place>) {
   return {
-    async restaurant(placeId: string, userId: string, combinedParticipantIds?: string[]) {
+    async restaurant(placeId: string, userId: string, combinedParticipantIds?: string[], preparedPlace?: Place) {
+      const knownPlace = preparedPlace?.id === placeId ? preparedPlace : undefined;
       const [stored, reviews, friendships] = await Promise.all([
-        repository.getPlace(placeId), repository.getReviewsForPlace(placeId), repository.listFriendships(userId, combinedParticipantIds !== undefined),
+        knownPlace ?? repository.getPlace(placeId), repository.getReviewsForPlace(placeId), repository.listFriendships(userId, combinedParticipantIds !== undefined),
       ]);
       const combinedIds=combinedParticipantIds===undefined?undefined:validateParticipants(userId,combinedParticipantIds,friendships);
       const profiles = await repository.getUsers([...new Set(reviews.map(row => row.userId))]);
       const byUser = new Map(profiles.map(user => [user.id, user]));
       const authored = (rows: Review[]): AuthoredReview[] => rows.map(review => ({ ...review, user: byUser.get(review.userId) ?? fallbackUser(review.userId) }));
       const friendSummary = friendsAtPlace(reviews, acceptedFriendIds(userId, friendships));
-      const place = stored ? applyPlaceScores([await refreshPlace(stored)], reviews)[0] : undefined;
+      const place = stored ? applyPlaceScores([knownPlace ?? await refreshPlace(stored)], reviews)[0] : undefined;
       if(combinedIds)validateParticipants(userId,combinedIds,await repository.listFriendships(userId,true));
       const combined=combinedIds && place?combineReviews(reviews,combinedIds,[place])[0]:undefined;
       return {

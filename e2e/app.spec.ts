@@ -35,9 +35,17 @@ test('creates, edits and removes a review from the personal List', async ({ page
   const note = page.getByLabel('Your review note (optional)');
   await page.getByRole('button', { name: 'Increase rating by 0.01' }).click();
   await note.fill('Playwright review');
+  await page.evaluate(() => {
+    const markers = document.body.dataset;
+    const observer = new MutationObserver(() => {
+      if (document.body.textContent?.includes('Finding this place…')) markers.placeReloaded = 'true';
+    });
+    observer.observe(document.body, { childList: true, subtree: true, characterData: true });
+  });
   await page.getByText('Share review', { exact: true }).click();
   await expect(page).toHaveURL(/\/place\/p2(?:\?|$)/);
   await expect(page.getByText('Playwright review', { exact: true })).toBeVisible();
+  expect(await page.locator('body').getAttribute('data-place-reloaded')).toBeNull();
 
   await page.getByText('Edit review', { exact: true }).click();
   await expect(note).toHaveValue('Playwright review');

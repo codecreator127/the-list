@@ -14,7 +14,9 @@ import type { RankedPlace } from '../features/myList';
 import type { PodiumChange } from '../features/podium';
 import { createPersonalizedData } from './personalizedData';
 
-type ReviewSaveResult = PhotoCleanupResult & { podiumChanges: PodiumChange[] };
+type ReviewSaveResult = PhotoCleanupResult & { podiumChanges: PodiumChange[]; review: Review };
+type SavedReviewReturn = { review: Review; place?: Place; author?: User };
+let savedReviewReturn: SavedReviewReturn | undefined;
 
 const repository: FoodRepository = isFirebaseRepositoryEnabled ? firestoreRepository : mockRepository;
 const sortReviews = (rows:Review[]) => rows.sort((a,b)=>(b.createdAt?.getTime()??0)-(a.createdAt?.getTime()??0));
@@ -41,7 +43,19 @@ export const foodService = {
   const userId=currentUserId();if(!userId)return ()=>{};
   return repository.watchFriendships?.(userId,onChange,onError) ?? (()=>{});
  },
- async getRestaurantDetails(placeId:string,combinedParticipants?:string[]) { const userId=currentUserId();if(!userId)throw new Error('Sign in to view this restaurant.');return createPersonalizedData(repository,refreshPlace).restaurant(placeId,userId,combinedParticipants); },
+ async getRestaurantDetails(placeId:string,combinedParticipants?:string[],preparedPlace?:Place) { const userId=currentUserId();if(!userId)throw new Error('Sign in to view this restaurant.');return createPersonalizedData(repository,refreshPlace).restaurant(placeId,userId,combinedParticipants,preparedPlace); },
+ rememberSavedReview(result: SavedReviewReturn) {
+  if (result.review.userId === currentUserId()) {
+   savedReviewReturn = { ...result, place: result.place?.id === result.review.placeId ? result.place : undefined };
+  }
+ },
+ takeSavedReview(placeId: string) {
+  if (savedReviewReturn?.review.userId !== currentUserId()) savedReviewReturn = undefined;
+  if (savedReviewReturn?.review.placeId !== placeId) return undefined;
+  const result = savedReviewReturn;
+  savedReviewReturn = undefined;
+  return result;
+ },
  async getHomeData() { const userId=currentUserId();if(!userId)throw new Error('Sign in to see your activity.');return createPersonalizedData(repository,refreshPlace).home(userId); },
  async getPlaces(query=''):Promise<Place[]>{
   const q=query.trim().toLowerCase();
@@ -68,7 +82,7 @@ export const foodService = {
  async resolveSearchResult(result:PlaceSearchResult):Promise<Place>{if(result.mockPlaceId){const mockPlace=await mockRepository.getPlace(result.mockPlaceId);if(repository===mockRepository)return mockPlace!;throw new Error('Sample places are available only in local mock mode.');}const place=placeFromGoogle(result);return repository.savePlace(place);},
  async getPlace(id:string):Promise<Place|undefined>{const stored=await repository.getPlace(id);if(!stored||isFirebaseRepositoryEnabled&&stored.googlePlaceId?.startsWith('mock:'))return undefined;const place=await refreshPlace(stored);return withAggregate(place);},
  async getReviews(placeId?:string):Promise<(Review&{user:User})[]>{const rows=placeId?await repository.getReviewsForPlace(placeId):await repository.getRecentReviews();const ordered=sortReviews(rows);return Promise.all(ordered.map(async review=>({...review,user:await repository.getUser(review.userId)})));},
- async addReview(placeId:string,rating:number,text:string,subRatings?:Review['subRatings'],photo?:Review['photo']):Promise<ReviewSaveResult>{if(isFirebaseRepositoryEnabled&&!firebaseAuth?.currentUser)throw new Error('Sign in to share your review.');const categories=Object.fromEntries(Object.entries(subRatings??{}).filter((entry):entry is [string,number]=>typeof entry[1]==='number'));const {podiumChanges}=await repository.createReview({placeId,rating,text,...(photo?{photo}:{}),...(Object.keys(categories).length?{subRatings:categories as Review['subRatings']}:{})});return {podiumChanges};},
+ async addReview(placeId:string,rating:number,text:string,subRatings?:Review['subRatings'],photo?:Review['photo']):Promise<ReviewSaveResult>{if(isFirebaseRepositoryEnabled&&!firebaseAuth?.currentUser)throw new Error('Sign in to share your review.');const categories=Object.fromEntries(Object.entries(subRatings??{}).filter((entry):entry is [string,number]=>typeof entry[1]==='number'));const {podiumChanges,...review}=await repository.createReview({placeId,rating,text,...(photo?{photo}:{}),...(Object.keys(categories).length?{subRatings:categories as Review['subRatings']}:{})});return {podiumChanges,review};},
  async getMyReview(placeId:string):Promise<Review|undefined>{const userId=isFirebaseRepositoryEnabled?firebaseAuth?.currentUser?.uid:'u1';if(!userId)return undefined;const rows=(await repository.getReviewsByUser(userId)).filter(review=>review.placeId===placeId);return rows.sort((a,b)=>(b.updatedAt?.getTime()??b.createdAt?.getTime()??0)-(a.updatedAt?.getTime()??a.createdAt?.getTime()??0))[0];},
  async getUser(id:string):Promise<User>{return repository.getUser(id);},
  async getCurrentUserReviews():Promise<(Review&{user:User;place:Place})[]>{const userId=isFirebaseRepositoryEnabled?firebaseAuth?.currentUser?.uid:'u1';if(!userId)return [];const rows=await repository.getReviewsByUser(userId);const ordered=sortReviews(rows);const joined=await Promise.all(ordered.map(async review=>{const place=await this.getPlace(review.placeId);return place?{...review,user:await repository.getUser(review.userId),place}:undefined;}));return joined.filter((review):review is Review&{user:User;place:Place}=>!!review);},
@@ -82,12 +96,10 @@ export const foodService = {
  async removeFriend(friendshipId:string):Promise<void>{const current=currentUserId();if(!current)throw new Error('Sign in to remove a friend.');return repository.removeFriend(current,friendshipId);},
  async saveCurrentUserProfile(username:string,displayName:string,avatarUrl?:string|null):Promise<void>{const userId=currentUserId();if(!userId)throw new Error('Sign in before editing your profile.');return repository.saveUserProfile(userId,username,displayName,avatarUrl);},
  async rebuildMyListFromReviews():Promise<void>{const userId=isFirebaseRepositoryEnabled?firebaseAuth?.currentUser?.uid:'u1';if(!userId)throw new Error('Sign in before rebuilding your List.');await repository.rebuildMyListFromReviews(userId);},
- async updateReview(placeId:string,rating:number,text:string,subRatings?:Review['subRatings'],photo?:Review['photo']|null):Promise<ReviewSaveResult>{const existing=await this.getMyReview(placeId);if(!existing)throw new Error('You have not reviewed this place yet.');const categories=Object.fromEntries(Object.entries(subRatings??{}).filter((entry):entry is [string,number]=>typeof entry[1]==='number'));let podiumChanges:PodiumChange[]=[];
-  const cleanup=await persistThenCleanup(existing.photo,photo,async()=>{
-   const saved=await repository.updateReview(existing.id,{rating,text,...(photo!==undefined?{photo}:{}),...(subRatings!==undefined?{subRatings:categories as Review['subRatings']}: {})});
-   podiumChanges=saved.podiumChanges;
-  },deleteReviewPhoto);
-  return {...cleanup,podiumChanges};},
+ async updateReview(placeId:string,rating:number,text:string,subRatings?:Review['subRatings'],photo?:Review['photo']|null):Promise<ReviewSaveResult>{const existing=await this.getMyReview(placeId);if(!existing)throw new Error('You have not reviewed this place yet.');const categories=Object.fromEntries(Object.entries(subRatings??{}).filter((entry):entry is [string,number]=>typeof entry[1]==='number'));const save=repository.updateReview(existing.id,{rating,text,...(photo!==undefined?{photo}:{}),...(subRatings!==undefined?{subRatings:categories as Review['subRatings']}: {})});
+  const cleanup=await persistThenCleanup(existing.photo,photo,()=>save,deleteReviewPhoto);
+  const {podiumChanges,...review}=await save;
+  return {...cleanup,podiumChanges,review};},
  async deleteReview(placeId:string):Promise<PhotoCleanupResult>{const userId=isFirebaseRepositoryEnabled?firebaseAuth?.currentUser?.uid:'u1';if(!userId)throw new Error('Sign in before deleting a review.');const existing=await this.getMyReview(placeId);if(!existing)throw new Error('You have not reviewed this place yet.');return persistThenCleanup(existing.photo,null,()=>repository.deleteReview(existing.id,userId),deleteReviewPhoto);},
  async ensureCurrentUserProfile(username?:string):Promise<void>{const user=firebaseAuth?.currentUser;if(!user)throw new Error('Sign in before saving your profile.');const defaultUsername=`member_${user.uid.slice(-8).toLowerCase()}`;await repository.ensureUserProfile({userId:user.uid,...(username?{username}:{}),displayName:user.displayName?.trim()||'List member',avatarUrl:user.photoURL});if(!username&&isFirebaseRepositoryEnabled){const profile=await repository.getUser(user.uid);if(!profile.username)await repository.ensureUserProfile({userId:user.uid,username:defaultUsername,displayName:user.displayName?.trim()||'List member',avatarUrl:user.photoURL});}},
 };

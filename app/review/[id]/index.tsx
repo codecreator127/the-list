@@ -6,7 +6,7 @@ import { BackButton, Button, IconButton, Input, Page, RatingStars, Text } from '
 import { foodService } from '../../../services/foodService';
 import { isFirebaseRepositoryEnabled } from '../../../services/firebase';
 import { watchAuthState } from '../../../services/auth';
-import { reviewSubcategories, type Place, type Review, type ReviewSubcategory } from '../../../types/models';
+import { reviewSubcategories, type Place, type Review, type ReviewSubcategory, type User } from '../../../types/models';
 import { colors, radius, typefaces, useTheme } from '../../../theme';
 import { PressableScale, useReducedMotion } from '../../../components/motion';
 import { getListPlacementPreview, reviewRankingCandidate, type RankedPlace } from '../../../features/myList';
@@ -198,6 +198,7 @@ export default function WriteReview() {
   const [podiumChanges, setPodiumChanges] = useState<PodiumChange[]>([]);
   const [error, setError] = useState('');
   const [place, setPlace] = useState<Place>();
+  const [author, setAuthor] = useState<User>();
   const [previewData, setPreviewData] = useState<{ userId: string; items: RankedPlace[]; reviews: Review[] }>();
   const [previewLoading, setPreviewLoading] = useState(true);
   const [previewError, setPreviewError] = useState('');
@@ -216,10 +217,13 @@ export default function WriteReview() {
     setReviewLoaded(!isEditing);
     setError('');
     setPreviewData(undefined);
+    setAuthor(undefined);
     setPreviewLoading(true);
     setPreviewError('');
 
     async function load() {
+      const userId = isFirebaseRepositoryEnabled ? firebaseAuth?.currentUser?.uid : 'u1';
+      if (userId) void foodService.getUser(userId).then(user => { if (active) setAuthor(user); }).catch(() => {});
       void foodService.getMyListWithReviews().then(data => {
         if (active) setPreviewData(data);
       }).catch(cause => {
@@ -283,8 +287,7 @@ export default function WriteReview() {
 
   useEffect(() => {
     if (!success || cleanupPending || podiumChanges.length) return;
-    const timer = setTimeout(returnToPlace, 360);
-    return () => clearTimeout(timer);
+    returnToPlace();
   }, [success, cleanupPending, podiumChanges.length, returnToPlace]);
 
   async function selectPhoto() {
@@ -321,6 +324,8 @@ export default function WriteReview() {
       const photoChange = stagedPhoto ?? (removePhoto ? null : undefined);
       const result = isEditing ? await foodService.updateReview(id, rating, body.trim(), subRatings, photoChange)
         : await foodService.addReview(id, rating, body.trim(), subRatings, stagedPhoto);
+      foodService.rememberSavedReview({ review: result.review, place, author });
+      setSaving(false);
       setPodiumChanges(result.podiumChanges);
       setCleanupPending(result.cleanupPending);
       if (result.cleanupPending) setError('Your review was saved, but the previous photo could not be removed. Retry photo cleanup below.');

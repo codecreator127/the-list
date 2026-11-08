@@ -78,6 +78,17 @@ test('restaurant loading shares one review query and batches profiles across all
   assert.equal(calls.profiles, 1);
   assert.equal(calls.reviews, 1);
 });
+test('refreshing a prepared restaurant fetches current reviews without reloading place metadata', async () => {
+  const {repository, calls} = fixture();
+  const prepared = { ...place('shared'), name: 'Already loaded', reviewCount: 0 };
+  const loader = createPersonalizedData({ ...repository, async getPlace() { throw new Error('Unneeded place read'); } },
+    async () => { throw new Error('Unneeded Google Places request'); });
+  const refreshed = await loader.restaurant('shared', 'me', undefined, prepared);
+  assert.equal(refreshed.place?.name, prepared.name);
+  assert.ok(refreshed.place!.reviewCount > prepared.reviewCount);
+  assert.equal(refreshed.myReview?.userId, 'me');
+  assert.equal(calls.reviews, 1);
+});
 test('Home batches visible place and profile joins once and never hydrates the same place twice', async () => {
   const {loader, calls} = fixture();
   const result = await loader.home('me');
