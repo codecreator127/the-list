@@ -1,7 +1,6 @@
 appId: com.thelist.app
 ---
-- launchApp:
-    clearState: true
+- launchApp
 - extendedWaitUntil:
     visible: Get started
     timeout: 90000

@@ -22,6 +22,9 @@ if [[ ${1:-} != test ]]; then
   RCT_NO_LAUNCH_PACKAGER=1 xcodebuild -workspace ios/TheList.xcworkspace -scheme TheList \
     -configuration Debug -destination "id=$IOS_SIMULATOR_UDID" -derivedDataPath ios/build build \
     > "$logs/xcodebuild.log" 2>&1 || { tail -n 100 "$logs/xcodebuild.log"; exit 1; }
+  if xcrun simctl get_app_container "$IOS_SIMULATOR_UDID" com.thelist.app app >/dev/null 2>&1; then
+    xcrun simctl uninstall "$IOS_SIMULATOR_UDID" com.thelist.app
+  fi
   xcrun simctl install "$IOS_SIMULATOR_UDID" ios/build/Build/Products/Debug-iphonesimulator/TheList.app
   if [[ ${1:-} == build ]]; then
     exit 0
