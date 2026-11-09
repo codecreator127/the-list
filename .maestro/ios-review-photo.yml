@@ -1,6 +1,8 @@
 appId: com.thelist.app
 ---
-- launchApp
+- launchApp:
+    arguments:
+      RCT_jsLocation: "127.0.0.1:8081"
 - extendedWaitUntil:
     visible: Get started
     timeout: 90000

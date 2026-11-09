@@ -47,5 +47,8 @@ photo="$(mktemp -d)"
 trap 'rm -f "$photo/photo.png"; rmdir "$photo"; kill "$metro_pid" "$uploads_pid" 2>/dev/null || true' EXIT
 xcrun simctl io "$IOS_SIMULATOR_UDID" screenshot "$photo/photo.png"
 xcrun simctl addmedia "$IOS_SIMULATOR_UDID" "$photo/photo.png"
-maestro --verbose --device "$IOS_SIMULATOR_UDID" test --debug-output "$logs/maestro" .maestro/ios-review-photo.yml
+maestro --verbose --device "$IOS_SIMULATOR_UDID" test --debug-output "$logs/maestro" .maestro/ios-review-photo.yml || {
+  xcrun simctl spawn "$IOS_SIMULATOR_UDID" log show --last 5m --predicate 'process == "TheList"' > "$logs/simulator.log" 2>&1 || true
+  exit 1
+}
 node scripts/ios-e2e.mjs verify

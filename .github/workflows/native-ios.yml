@@ -67,6 +67,7 @@ jobs:
         if: failure() || cancelled()
         with:
           name: native-ios-test-logs
+          include-hidden-files: true
           path: |
             test-results/ios/
             firestore-debug.log
