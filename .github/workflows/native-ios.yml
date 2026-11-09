@@ -1,0 +1,73 @@
+name: Native iOS tests
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - '.github/workflows/native-ios.yml'
+      - '.maestro/**'
+      - 'scripts/ios-e2e.*'
+      - 'app/**'
+      - 'components/**'
+      - 'services/**'
+      - 'features/**'
+      - 'data/**'
+      - 'theme/**'
+      - 'app.config.ts'
+      - 'app.json'
+      - 'firebase.json'
+      - 'firestore.*'
+      - 'server/profile-photo.mjs'
+      - 'package*.json'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: native-ios-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  review-photo:
+    runs-on: macos-15
+    timeout-minutes: 75
+    env:
+      CI: '1'
+      DEVELOPER_DIR: /Applications/Xcode_16.4.app/Contents/Developer
+      MAESTRO_CLI_NO_ANALYTICS: 'true'
+      MAESTRO_DRIVER_STARTUP_TIMEOUT: '300000'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - run: npm ci
+      - name: Install Maestro
+        run: |
+          curl -fsSL https://github.com/mobile-dev-inc/Maestro/releases/download/cli-2.11.0/maestro.zip -o "$RUNNER_TEMP/maestro.zip"
+          unzip -q "$RUNNER_TEMP/maestro.zip" -d "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/maestro/bin" >> "$GITHUB_PATH"
+      - name: Boot iPhone simulator
+        run: |
+          device="$(xcrun simctl create 'The List iOS tests' com.apple.CoreSimulator.SimDeviceType.iPhone-16 com.apple.CoreSimulator.SimRuntime.iOS-18-5)"
+          echo "IOS_SIMULATOR_UDID=$device" >> "$GITHUB_ENV"
+          xcrun simctl boot "$device"
+      - name: Build and install native app
+        timeout-minutes: 40
+        run: bash scripts/ios-e2e.sh build
+      - name: Test the review photo flow
+        timeout-minutes: 30
+        run: npx --yes firebase-tools@14.27.0 emulators:exec --project demo-the-list --only auth,firestore 'bash scripts/ios-e2e.sh test'
+      - uses: actions/upload-artifact@v4
+        if: failure() || cancelled()
+        with:
+          name: native-ios-test-logs
+          include-hidden-files: true
+          path: |
+            test-results/ios/
+            firestore-debug.log

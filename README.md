@@ -36,6 +36,21 @@ Run `npm run test:e2e:auth` with the Firebase CLI and Java installed to exercise
 
 For an iPhone-sized WebKit run, install WebKit with `npx playwright install webkit` and run `npm run test:e2e:webkit`.
 
+## Native iOS tests
+
+The **Native iOS tests** GitHub Actions workflow runs Maestro on an iPhone 16 simulator. The test signs in, opens Apple's photo picker, retries a failed upload, and checks that Firestore saved the photo reference. It uses local Firebase emulators and an upload stub.
+
+On a Mac with Xcode, CocoaPods, an iOS simulator, Java 21, and Maestro installed, run the same test from the repository root:
+
+```sh
+npm ci
+xcrun simctl list devices booted
+export IOS_SIMULATOR_UDID="YOUR_SIMULATOR_UDID"
+npx --yes firebase-tools@14.27.0 emulators:exec --project demo-the-list --only auth,firestore 'bash scripts/ios-e2e.sh'
+```
+
+Use a dedicated test simulator. The suite clears app data and adds a test image to its photo library. It uses ports 8081, 32180, 32181, and 32199.
+
 ## Data mode
 
 - In local development, with no Firebase configuration, the app uses the local mock repository. Set `EXPO_PUBLIC_DATA_MODE=mock` to force mock data. Production exports require Firebase and the browser Places key and reject mock mode.

@@ -1,0 +1,56 @@
+appId: com.thelist.app
+---
+- launchApp:
+    arguments:
+      RCT_jsLocation: "127.0.0.1:8081"
+- extendedWaitUntil:
+    visible: Get started
+    timeout: 90000
+- tapOn: Get started
+- extendedWaitUntil:
+    visible: Welcome back
+    timeout: 30000
+- tapOn: Email
+- inputText: ios-review@example.test
+- tapOn: Password
+- inputText: simulator-only-pass
+- hideKeyboard
+- tapOn: Log in
+- extendedWaitUntil:
+    visible: Recent Activity
+    timeout: 30000
+- openLink: thelist://place/pl_ios-test-place
+- scrollUntilVisible:
+    element: Write a review
+    direction: DOWN
+- tapOn: Write a review
+- tapOn: Increase rating by 0.01
+- scrollUntilVisible:
+    element: Add photo
+    direction: DOWN
+- tapOn: Add photo
+- tapOn:
+    id: PXGGridLayout-Info
+    index: 0
+    optional: true
+- tapOn:
+    text: Photo, .*
+    index: 0
+    optional: true
+- scrollUntilVisible:
+    element: Change photo
+    direction: DOWN
+- scrollUntilVisible:
+    element: Share review
+    direction: DOWN
+- tapOn: Share review
+- extendedWaitUntil:
+    visible: Photo service is temporarily unavailable\.
+    timeout: 15000
+- scrollUntilVisible:
+    element: Share review
+    direction: DOWN
+- tapOn: Share review
+- extendedWaitUntil:
+    visible: Edit review
+    timeout: 10000
