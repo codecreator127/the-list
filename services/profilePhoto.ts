@@ -4,6 +4,23 @@ import { firebaseAuth } from './auth';
 
 const maxPhotoSize = 4 * 1024 * 1024;
 
+function checkPhotoSize(size: number) {
+  if (size > maxPhotoSize) throw new Error('Choose a photo smaller than 4 MB.');
+}
+
+export async function validateSelectedPhoto(asset: ImagePickerAsset) {
+  if (asset.type === 'video') throw new Error('Choose an image file.');
+  if (Platform.OS === 'web') {
+    checkPhotoSize(asset.file?.size ?? asset.fileSize ?? 0);
+    return;
+  }
+  // Android's picker can report the original size even after exporting a smaller file.
+  const { getInfoAsync } = require('expo-file-system') as typeof import('expo-file-system');
+  const info = await getInfoAsync(asset.uri);
+  if (!info.exists || info.isDirectory) throw new Error('Could not read the selected image.');
+  checkPhotoSize(info.size);
+}
+
 function endpoint(kind: 'profile' | 'review') {
   const configured = process.env.EXPO_PUBLIC_UPLOAD_API_URL?.replace(/\/$/, '') ?? '';
   const base = Platform.OS === 'web' && !__DEV__ && !configured.startsWith('https://') ? '' : configured;
@@ -39,13 +56,13 @@ async function photoRequest(method: 'POST' | 'DELETE', body: Blob | string, cont
 
 async function uploadPhoto(userId: string, asset: ImagePickerAsset, kind: 'profile' | 'review'): Promise<{ path: string; url: string }> {
   if (firebaseAuth?.currentUser?.uid !== userId) throw new Error('Sign in again before uploading a photo.');
-  if ((asset.file?.size ?? asset.fileSize ?? 0) > maxPhotoSize) throw new Error('Choose a photo smaller than 4 MB.');
+  await validateSelectedPhoto(asset);
   const reportedType = (asset.file?.type || asset.mimeType || 'application/octet-stream').toLowerCase();
   const contentType = reportedType === 'image/jpg' ? 'image/jpeg' : reportedType;
-  if (!['image/jpeg', 'image/png', 'image/webp', 'application/octet-stream'].includes(contentType)) throw new Error('Choose a JPEG, PNG, or WebP image.');
 
   let result;
   if (Platform.OS === 'web') {
+    if (!['image/jpeg', 'image/png', 'image/webp', 'application/octet-stream'].includes(contentType)) throw new Error('Choose a JPEG, PNG, or WebP image.');
     let file: Blob;
     if (asset.file) file = asset.file;
     else {
@@ -53,15 +70,13 @@ async function uploadPhoto(userId: string, asset: ImagePickerAsset, kind: 'profi
       if (!response.ok) throw new Error('Could not read the selected image.');
       file = await response.blob();
     }
-    if (file.size > maxPhotoSize) throw new Error('Choose a photo smaller than 4 MB.');
+    checkPhotoSize(file.size);
     result = await photoRequest('POST', file, contentType, kind, userId);
   } else {
-    const { getInfoAsync, uploadAsync, FileSystemUploadType } = require('expo-file-system') as typeof import('expo-file-system');
-    const info = await getInfoAsync(asset.uri);
-    if (!info.exists || info.isDirectory) throw new Error('Could not read the selected image.');
-    if (info.size > maxPhotoSize) throw new Error('Choose a photo smaller than 4 MB.');
+    const { uploadAsync, FileSystemUploadType } = require('expo-file-system') as typeof import('expo-file-system');
     const url = endpoint(kind);
-    const headers = await photoHeaders(contentType, userId);
+    // The server checks the exported bytes; the picker MIME type can describe the original image.
+    const headers = await photoHeaders('application/octet-stream', userId);
     const response = await uploadAsync(url, asset.uri, {
       httpMethod: 'POST', uploadType: FileSystemUploadType.BINARY_CONTENT, headers,
     }).catch(() => { throw new Error('Could not upload the selected image. Check your connection and try again.'); });

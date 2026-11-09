@@ -7,7 +7,7 @@ import { Avatar, BackButton, Button, Input, Page, Text } from '../components/ui'
 import { foodService } from '../services/foodService';
 import { firebaseAuth, watchAuthState } from '../services/auth';
 import { isFirebaseRepositoryEnabled } from '../services/firebase';
-import { deletePreviousProfilePhoto, deleteProfilePhoto, uploadProfilePhoto } from '../services/profilePhoto';
+import { deletePreviousProfilePhoto, deleteProfilePhoto, uploadProfilePhoto, validateSelectedPhoto } from '../services/profilePhoto';
 import type { User } from '../types/models';
 import { colors, radius, useTheme } from '../theme';
 
@@ -79,7 +79,7 @@ export default function EditProfileScreen() {
       if (result.canceled) return;
       const asset = result.assets[0];
       if (!asset || asset.type === 'video') throw new Error('Choose an image file for your profile picture.');
-      if (asset.fileSize && asset.fileSize > 4 * 1024 * 1024) throw new Error('Choose a profile picture smaller than 4 MB.');
+      await validateSelectedPhoto(asset);
       setPhoto(asset);
     } catch (cause) {
       setError(errorMessage(cause, 'Could not open your photo library.'));

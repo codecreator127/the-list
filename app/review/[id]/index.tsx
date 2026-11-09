@@ -13,7 +13,7 @@ import { getListPlacementPreview, reviewRankingCandidate, type RankedPlace } fro
 import { normalizeRating, ratingFromSliderProgress, RATING_PRECISION, RATING_SCALE } from '../../../features/ratings';
 import * as ImagePicker from 'expo-image-picker';
 import { firebaseAuth } from '../../../services/auth';
-import { uploadReviewPhoto, deleteReviewPhoto } from '../../../services/profilePhoto';
+import { uploadReviewPhoto, deleteReviewPhoto, validateSelectedPhoto } from '../../../services/profilePhoto';
 import { PodiumCelebration } from '../../../components/PodiumCelebration';
 import type { PodiumChange } from '../../../features/podium';
 import { ReviewPhoto } from '../../../components/ReviewPhoto';
@@ -295,7 +295,8 @@ export default function WriteReview() {
       const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.8 });
       if (result.canceled) return;
       const asset = result.assets[0];
-      if (!asset || (asset.fileSize ?? asset.file?.size ?? 0) > 4 * 1024 * 1024) throw new Error('Choose a photo smaller than 4 MB.');
+      if (!asset) throw new Error('Could not read the selected image.');
+      await validateSelectedPhoto(asset);
       setPhoto(asset); setRemovePhoto(false); setError('');
     } catch (cause) { setError(cause instanceof Error ? cause.message : 'Could not select a photo.'); }
   }

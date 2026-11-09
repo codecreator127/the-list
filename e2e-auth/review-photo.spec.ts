@@ -83,6 +83,10 @@ test('signs in from a review link and saves a photo after a retry', async ({ pag
     }
   });
 
+  let profileCommits = 0;
+  page.on('request', req => {
+    if (req.url().includes('/documents:commit') && req.postData()?.includes('/documents/users/' + uid + '"')) profileCommits++;
+  });
   await page.goto('/review/' + placeId);
   await expect(page).toHaveURL(new RegExp('/auth[?]'));
   await signIn(page, email, password);
@@ -103,6 +107,7 @@ test('signs in from a review link and saves a photo after a retry', async ({ pag
   await photo.scrollIntoViewIfNeeded();
   await expect(photo).toHaveJSProperty('naturalWidth', 1);
   expect(methods).toEqual(['POST', 'POST']);
+  expect(profileCommits).toBe(1);
 
   await page.reload({ waitUntil: 'domcontentloaded' });
   await expect(photo).toHaveAttribute('src', url);
