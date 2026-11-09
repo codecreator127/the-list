@@ -30,7 +30,7 @@ concurrency:
 jobs:
   review-photo:
     runs-on: macos-15
-    timeout-minutes: 35
+    timeout-minutes: 55
     env:
       CI: '1'
       DEVELOPER_DIR: /Applications/Xcode_16.4.app/Contents/Developer
@@ -56,14 +56,16 @@ jobs:
           device="$(xcrun simctl create 'The List iOS tests' com.apple.CoreSimulator.SimDeviceType.iPhone-16 com.apple.CoreSimulator.SimRuntime.iOS-18-5)"
           echo "IOS_SIMULATOR_UDID=$device" >> "$GITHUB_ENV"
           xcrun simctl boot "$device"
-      - name: Build, install and test
-        run: npx --yes firebase-tools@14.27.0 emulators:exec --project demo-the-list --only auth,firestore 'bash scripts/ios-e2e.sh'
+      - name: Build and install native app
+        timeout-minutes: 40
+        run: bash scripts/ios-e2e.sh build
+      - name: Test the review photo flow
+        timeout-minutes: 15
+        run: npx --yes firebase-tools@14.27.0 emulators:exec --project demo-the-list --only auth,firestore 'bash scripts/ios-e2e.sh test'
       - uses: actions/upload-artifact@v4
-        if: failure()
+        if: failure() || cancelled()
         with:
           name: native-ios-test-logs
-          include-hidden-files: true
           path: |
             test-results/ios/
-            .expo/xcodebuild*.log
             firestore-debug.log
