@@ -36,12 +36,16 @@ fi
 xcrun simctl get_app_container "$IOS_SIMULATOR_UDID" com.thelist.app app >/dev/null
 node scripts/ios-e2e.mjs serve > "$logs/uploads.log" 2>&1 &
 uploads_pid=$!
-EXPO_OFFLINE=1 ./node_modules/.bin/expo start --localhost --port 8081 > "$logs/metro.log" 2>&1 &
+EXPO_OFFLINE=1 ./node_modules/.bin/expo start --localhost --port 8081 --max-workers 2 > "$logs/metro.log" 2>&1 &
 metro_pid=$!
 trap 'kill "$metro_pid" "$uploads_pid" 2>/dev/null || true' EXIT
 for url in "$EXPO_PUBLIC_UPLOAD_API_URL/ready" http://127.0.0.1:8081/status; do
   curl --fail --silent --show-error --retry 30 --retry-connrefused --retry-delay 2 --max-time 5 "$url"
 done
+
+# Compile the same development bundle that React Native requests before starting Maestro's UI waits.
+bundle_url='http://127.0.0.1:8081/.expo/.virtual-metro-entry.bundle?platform=ios&dev=true&lazy=true&minify=false&inlineSourceMap=false&modulesOnly=false&runModule=true&excludeSource=true&sourcePaths=url-server&app=com.thelist.app'
+curl --fail --silent --show-error --max-time 480 --output /dev/null "$bundle_url"
 
 photo="$(mktemp -d)"
 trap 'rm -f "$photo/photo.png"; rmdir "$photo"; kill "$metro_pid" "$uploads_pid" 2>/dev/null || true' EXIT
