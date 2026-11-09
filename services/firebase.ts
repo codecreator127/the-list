@@ -11,5 +11,12 @@ const config = {
 };
 export const hasFirebaseConfig = Boolean(config.apiKey && config.authDomain && config.projectId && config.appId);
 export const isFirebaseRepositoryEnabled = hasFirebaseConfig && process.env.EXPO_PUBLIC_DATA_MODE !== 'mock';
+// The native test harness uses the SDK's emulator defaults before Auth or Firestore initialize.
+if (config.projectId === 'demo-the-list' && process.env.EXPO_PUBLIC_USE_LOCAL_FIREBASE_EMULATORS === '1' && typeof __DEV__ !== 'undefined' && __DEV__) {
+ Object.assign(globalThis, {
+  __FIREBASE_DEFAULTS__: { emulatorHosts: { auth: '127.0.0.1:32199', firestore: '127.0.0.1:32180' } },
+ });
+}
+
 export const firebaseApp = hasFirebaseConfig ? getApps().length ? getApp() : initializeApp(config) : undefined;
 export const firestore = firebaseApp ? getFirestore(firebaseApp) : undefined;
