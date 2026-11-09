@@ -5,7 +5,7 @@ set -euo pipefail
 : "${FIREBASE_AUTH_EMULATOR_HOST:?Run through Firebase emulators:exec}"
 : "${FIRESTORE_EMULATOR_HOST:?Run through Firebase emulators:exec}"
 
-export EXPO_NO_DOTENV=1 EXPO_PUBLIC_DATA_MODE=firebase
+export EXPO_OFFLINE=1 EXPO_NO_DOTENV=1 EXPO_PUBLIC_DATA_MODE=firebase
 export EXPO_PUBLIC_FIREBASE_PROJECT_ID=demo-the-list
 export EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN=demo-the-list.firebaseapp.com
 export EXPO_PUBLIC_FIREBASE_API_KEY=demo-key EXPO_PUBLIC_FIREBASE_APP_ID=demo-app
@@ -18,7 +18,7 @@ mkdir -p "$logs"
 xcrun simctl bootstatus "$IOS_SIMULATOR_UDID" -b
 node scripts/ios-e2e.mjs serve > "$logs/uploads.log" 2>&1 &
 uploads_pid=$!
-./node_modules/.bin/expo start --offline --localhost --port 8081 > "$logs/metro.log" 2>&1 &
+./node_modules/.bin/expo start --localhost --port 8081 > "$logs/metro.log" 2>&1 &
 metro_pid=$!
 trap 'kill "$metro_pid" "$uploads_pid" 2>/dev/null || true' EXIT
 for url in "$EXPO_PUBLIC_UPLOAD_API_URL/ready" http://127.0.0.1:8081/status; do

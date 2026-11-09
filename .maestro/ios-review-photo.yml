@@ -36,9 +36,9 @@ appId: com.thelist.app
     text: Photo, .*
     index: 0
     optional: true
-- extendedWaitUntil:
-    visible: Change photo
-    timeout: 15000
+- scrollUntilVisible:
+    element: Change photo
+    direction: DOWN
 - scrollUntilVisible:
     element: Share review
     direction: DOWN
