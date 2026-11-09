@@ -5,7 +5,7 @@ set -euo pipefail
 : "${FIREBASE_AUTH_EMULATOR_HOST:?Run through Firebase emulators:exec}"
 : "${FIRESTORE_EMULATOR_HOST:?Run through Firebase emulators:exec}"
 
-export EXPO_OFFLINE=1 EXPO_NO_DOTENV=1 EXPO_PUBLIC_DATA_MODE=firebase
+export EXPO_NO_DOTENV=1 EXPO_PUBLIC_DATA_MODE=firebase
 export EXPO_PUBLIC_FIREBASE_PROJECT_ID=demo-the-list
 export EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN=demo-the-list.firebaseapp.com
 export EXPO_PUBLIC_FIREBASE_API_KEY=demo-key EXPO_PUBLIC_FIREBASE_APP_ID=demo-app
@@ -18,7 +18,7 @@ mkdir -p "$logs"
 xcrun simctl bootstatus "$IOS_SIMULATOR_UDID" -b
 node scripts/ios-e2e.mjs serve > "$logs/uploads.log" 2>&1 &
 uploads_pid=$!
-./node_modules/.bin/expo start --localhost --port 8081 > "$logs/metro.log" 2>&1 &
+EXPO_OFFLINE=1 ./node_modules/.bin/expo start --localhost --port 8081 > "$logs/metro.log" 2>&1 &
 metro_pid=$!
 trap 'kill "$metro_pid" "$uploads_pid" 2>/dev/null || true' EXIT
 for url in "$EXPO_PUBLIC_UPLOAD_API_URL/ready" http://127.0.0.1:8081/status; do
@@ -26,6 +26,7 @@ for url in "$EXPO_PUBLIC_UPLOAD_API_URL/ready" http://127.0.0.1:8081/status; do
 done
 
 npx expo run:ios --device "$IOS_SIMULATOR_UDID" --no-bundler
+xcrun simctl get_app_container "$IOS_SIMULATOR_UDID" com.thelist.app app >/dev/null
 photo="$(mktemp -d)"
 trap 'rm -f "$photo/photo.png"; rmdir "$photo"; kill "$metro_pid" "$uploads_pid" 2>/dev/null || true' EXIT
 xcrun simctl io "$IOS_SIMULATOR_UDID" screenshot "$photo/photo.png"
