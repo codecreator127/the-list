@@ -45,6 +45,7 @@ test('creates, edits and removes a review from the personal List', async ({ page
   await page.getByText('Share review', { exact: true }).click();
   await expect(page).toHaveURL(/\/place\/p2(?:\?|$)/);
   await expect(page.getByText('Playwright review', { exact: true })).toBeVisible();
+  await expect(page.getByRole('alert').filter({ hasText: 'Review shared' })).toBeVisible();
   expect(await page.locator('body').getAttribute('data-place-reloaded')).toBeNull();
 
   await page.getByText('Edit review', { exact: true }).click();
@@ -54,6 +55,7 @@ test('creates, edits and removes a review from the personal List', async ({ page
   await page.getByText('Save changes', { exact: true }).click();
   await expect(page).toHaveURL(/\/place\/p2(?:\?|$)/);
   await expect(page.getByText('Updated Playwright review', { exact: true })).toBeVisible();
+  await expect(page.getByRole('alert').filter({ hasText: 'Review shared' })).toHaveCount(0);
 
   await page.getByRole('button', { name: 'Go back', exact: true }).click();
   await expect(page).toHaveURL(/\/search$/);
@@ -126,5 +128,5 @@ test('opens the List when bundled typefaces cannot load', async ({ page }) => {
   await page.goto('/list', { waitUntil: 'domcontentloaded' });
   await expect(page.getByText('YOUR PLACES', { exact: true })).toHaveCSS('font-family', /(?:^|,\s*)monospace(?:,|$)/);
   expect(blockedFonts).toBeGreaterThan(0);
-  await expect(page.getByRole('button', { name: 'Tasting Passport', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Combined List', exact: true })).toBeVisible();
 });

@@ -2,6 +2,8 @@ import { CUISINE_TERMS } from '../data/searchOptions';
 import type { Place, Review } from '../types/models';
 import { PODIUM_MINIMUM_PLACES } from './podium';
 
+export const isTastingPassportEnabled = process.env.EXPO_PUBLIC_TASTING_PASSPORT_ENABLED === 'true';
+
 export const passportCuisines = [
   'Japanese', 'Chinese', 'Korean', 'Thai', 'Vietnamese', 'Italian',
   'Mexican', 'Indian', 'French', 'Greek', 'Seafood',

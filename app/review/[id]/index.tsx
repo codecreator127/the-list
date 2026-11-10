@@ -325,7 +325,10 @@ export default function WriteReview() {
       const photoChange = stagedPhoto ?? (removePhoto ? null : undefined);
       const result = isEditing ? await foodService.updateReview(id, rating, body.trim(), subRatings, photoChange)
         : await foodService.addReview(id, rating, body.trim(), subRatings, stagedPhoto);
-      foodService.rememberSavedReview({ review: result.review, place, author });
+      foodService.rememberSavedReview({
+        review: result.review, place, author,
+        celebrate: !isEditing && result.podiumChanges.length === 0,
+      });
       setSaving(false);
       setPodiumChanges(result.podiumChanges);
       setCleanupPending(result.cleanupPending);

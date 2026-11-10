@@ -19,9 +19,9 @@ Copy `.env.example` to `.env` if you want to configure external services. Expo p
 
 ## Tasting Passport and podium
 
-Open **List → Tasting Passport** to track cuisine stamps, milestones, and a weekly goal of reviewing two new restaurants. Choose a cuisine stamp to explore matching places. Progress comes from your saved reviews, and the weekly challenge starts on Monday in your device’s time zone.
+Tasting Passport is paused. Set `EXPO_PUBLIC_TASTING_PASSPORT_ENABLED=true` and rebuild to restore it under **List → Tasting Passport**. Progress is calculated from saved reviews.
 
-When a saved review changes the top three of a List with at least ten places, the review screen celebrates each changed spot. Reduced-motion settings replace the animations with static medals.
+New reviews get a quick celebration on the restaurant screen. When a saved review changes the top three of a List with at least ten places, the review screen celebrates each changed spot. Reduced-motion settings replace the animations with a static checkmark or medals.
 
 ## Browser tests
 

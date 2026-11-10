@@ -15,7 +15,7 @@ import type { PodiumChange } from '../features/podium';
 import { createPersonalizedData } from './personalizedData';
 
 type ReviewSaveResult = PhotoCleanupResult & { podiumChanges: PodiumChange[]; review: Review };
-type SavedReviewReturn = { review: Review; place?: Place; author?: User };
+type SavedReviewReturn = { review: Review; place?: Place; author?: User; celebrate: boolean };
 let savedReviewReturn: SavedReviewReturn | undefined;
 
 const repository: FoodRepository = isFirebaseRepositoryEnabled ? firestoreRepository : mockRepository;
