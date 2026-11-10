@@ -1,6 +1,17 @@
 import { expect, test } from '@playwright/test';
 
+const passportEnabled = process.env.EXPO_PUBLIC_TASTING_PASSPORT_ENABLED === 'true';
+
+test('hides Tasting Passport and redirects its direct link when disabled', async ({ page }) => {
+  test.skip(passportEnabled, 'Requires Tasting Passport to be disabled.');
+  await page.goto('/tasting-passport', { waitUntil: 'domcontentloaded' });
+  await expect(page).toHaveURL(/\/list$/);
+  await expect(page.getByRole('button', { name: 'Combined List', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Tasting Passport', exact: true })).toHaveCount(0);
+});
+
 test('explores an unstamped cuisine and updates Passport progress after saving a review', async ({ page }) => {
+  test.skip(!passportEnabled, 'Requires EXPO_PUBLIC_TASTING_PASSPORT_ENABLED=true.');
   await page.clock.setFixedTime(new Date('2026-06-01T12:00:00Z'));
   await page.goto('/list', { waitUntil: 'domcontentloaded' });
   await page.getByRole('button', { name: 'Tasting Passport', exact: true }).click();

@@ -1,16 +1,20 @@
 import { useCallback, useState } from 'react';
-import { router, useFocusEffect } from 'expo-router';
+import { Redirect, router, useFocusEffect } from 'expo-router';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { BackButton, Button, Page, Text } from '../components/ui';
-import { getPassportProgress, passportCuisines, weeklyTastingTarget } from '../features/tastingPassport';
+import { getPassportProgress, isTastingPassportEnabled, passportCuisines, weeklyTastingTarget } from '../features/tastingPassport';
 import { foodService } from '../services/foodService';
 import { colors, radius, typefaces, useTheme } from '../theme';
 
 type Progress = ReturnType<typeof getPassportProgress>;
 type State = { status: 'loading' } | { status: 'error' } | { status: 'ready'; progress: Progress };
 
-export default function TastingPassport() {
+export default function TastingPassportRoute() {
+  return isTastingPassportEnabled ? <TastingPassport /> : <Redirect href="/(tabs)/list" />;
+}
+
+function TastingPassport() {
   useTheme();
   const styles = makeStyles();
   const [state, setState] = useState<State>({ status: 'loading' });

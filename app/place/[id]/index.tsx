@@ -5,6 +5,7 @@ import { Image, Linking, Pressable, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { BackButton, Button, Page, Rating, ReviewCard, Text, Badge } from '../../../components/ui';
 import { PressableScale } from '../../../components/motion';
+import { ReviewSavedCelebration } from '../../../components/ReviewSavedCelebration';
 import { foodService } from '../../../services/foodService';
 import type { Place, Review, User } from '../../../types/models';
 import { colors, radius, useTheme } from '../../../theme';
@@ -21,6 +22,7 @@ export default function PlaceScreen() {
   const [place, setPlace] = useState<Place>();
   const [reviews, setReviews] = useState<(Review & { user: User })[]>([]);
   const [myReview, setMyReview] = useState<Review>();
+  const [celebrateReview, setCelebrateReview] = useState(false);
   const [friendReviews, setFriendReviews] = useState<(Review & { user: User })[]>([]);
   const [friendAverage, setFriendAverage] = useState<number>();
   const [loading, setLoading] = useState(true);
@@ -37,6 +39,7 @@ export default function PlaceScreen() {
     catch(cause){setError(cause instanceof Error?cause.message:'Invalid participants.');setLoading(false);return;}
     const userId = isFirebaseRepositoryEnabled ? firebaseAuth?.currentUser?.uid ?? '' : 'u1';
     const saved = foodService.takeSavedReview(id);
+    setCelebrateReview(saved?.celebrate ?? false);
     const previousPlace = loadedPlace.current;
     const knownPlace = (previousPlace?.place.id === id && previousPlace.userId === userId ? previousPlace.place : undefined) ?? saved?.place;
     const canShowDetails = !!knownPlace && !ids;
@@ -143,6 +146,7 @@ export default function PlaceScreen() {
     </PressableScale>
     {place.googlePlaceId && !place.googlePlaceId.startsWith('mock:') ? <Text size={11} color={colors.muted} style={{ marginTop: 8 }}>Google Maps</Text> : null}
     <View style={{ marginTop: 24 }}>
+      {celebrateReview && <ReviewSavedCelebration />}
       {myReview ? <View style={s.ownReview}>
         <Ionicons name="checkmark-circle-outline" size={19} color={colors.green} />
         <View style={{ flex: 1, minWidth:120 }}>

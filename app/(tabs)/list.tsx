@@ -11,6 +11,7 @@ import { foodService } from '../../services/foodService';
 import { isFirebaseRepositoryEnabled } from '../../services/firebase';
 import type { RankedPlace } from '../../features/myList';
 import { filterPersonalList } from '../../features/listFilters';
+import { isTastingPassportEnabled } from '../../features/tastingPassport';
 import { colors, typefaces, useTheme } from '../../theme';
 
 export default function ListScreen() {
@@ -60,7 +61,7 @@ export default function ListScreen() {
         <View style={styles.listIntro}><Text size={10} color={colors.textMuted} style={styles.mono}>YOUR PLACES</Text><View style={styles.count}><Text size={31} color={colors.textPrimary} style={styles.serif}>{items.length}</Text><Text size={10} color={colors.textMuted}> {items.length === 1 ? 'spot' : 'spots'}</Text></View></View>
         {signedIn ? <View style={styles.listActions}>
           <Button title="Combined List" icon="people-outline" variant="secondary" size="small" onPress={() => router.push('/combined-list')} />
-          <Button title="Tasting Passport" icon="compass-outline" variant="secondary" size="small" onPress={() => router.push('/tasting-passport')} />
+          {isTastingPassportEnabled ? <Button title="Tasting Passport" icon="compass-outline" variant="secondary" size="small" onPress={() => router.push('/tasting-passport')} /> : null}
         </View> : null}
         {signedIn && !loading && !error && items.length ? <>
           <ListFilterControls items={items} filters={filters} onChange={setFilters} placeholder="Search your restaurants"/>
