@@ -4,10 +4,9 @@ import { DMSans_400Regular, DMSans_500Medium, DMSans_600SemiBold, DMSans_700Bold
 import { PlayfairDisplay_500Medium, PlayfairDisplay_500Medium_Italic } from '@expo-google-fonts/playfair-display';
 import { DMMono_400Regular, DMMono_500Medium } from '@expo-google-fonts/dm-mono';
 import { useColorScheme } from 'react-native';
-import { ActivityIndicator, View } from 'react-native';
+import { FullScreenLoading } from '../components/FullScreenLoading';
 import { useEffect, useState, type PropsWithChildren } from 'react';
 import { setActivePalette, setBundledTypefacesReady, ThemeContext, type ThemeMode } from './index';
-import { colors } from './index';
 
 const preferenceKey = 'the-list-theme-mode';
 export function ThemeProvider({ children }: PropsWithChildren) {
@@ -27,6 +26,8 @@ export function ThemeProvider({ children }: PropsWithChildren) {
   const scheme = mode === 'system' ? systemScheme : mode;
   setActivePalette(scheme);
   setBundledTypefacesReady(fontsLoaded);
-  if (!fontsLoaded && !fontError && !fontWaitExpired) return <View accessibilityRole="progressbar" accessibilityLabel="Loading The List typefaces" style={{ flex: 1, backgroundColor: colors.background, alignItems: 'center', justifyContent: 'center' }}><ActivityIndicator color={colors.accent}/></View>;
-  return <ThemeContext.Provider value={{ mode: loaded ? mode : 'system', scheme, setMode }}>{children}</ThemeContext.Provider>;
+  const loadingFonts = !fontsLoaded && !fontError && !fontWaitExpired;
+  return <ThemeContext.Provider value={{ mode: loaded ? mode : 'system', scheme, setMode }}>
+    {loadingFonts ? <FullScreenLoading message="Getting your table ready…" /> : children}
+  </ThemeContext.Provider>;
 }

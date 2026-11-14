@@ -5,6 +5,7 @@ import { Image, Linking, Pressable, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { BackButton, Button, Page, Rating, ReviewCard, Text, Badge } from '../../../components/ui';
 import { PressableScale } from '../../../components/motion';
+import { FullScreenLoading } from '../../../components/FullScreenLoading';
 import { ReviewSavedCelebration } from '../../../components/ReviewSavedCelebration';
 import { foodService } from '../../../services/foodService';
 import type { Place, Review, User } from '../../../types/models';
@@ -93,7 +94,7 @@ export default function PlaceScreen() {
     <Text size={13} color={colors.muted} style={{ marginTop: 7, lineHeight: 20 }}>{error}</Text>
     <Button title="Try again" variant="secondary" onPress={() => setRetry(value => value + 1)} style={{marginTop: 14}}/>
   </Page>;
-  if (loading || !place) return <Page><Text>Finding this place…</Text></Page>;
+  if (loading || !place) return <FullScreenLoading message="Finding this place…" />;
 
   const openMap = () => {
     const placeId = place.googlePlaceId && !place.googlePlaceId.startsWith('mock:') ? place.googlePlaceId : undefined;
